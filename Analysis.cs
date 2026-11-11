@@ -225,8 +225,8 @@ namespace AppSys
                 if (st != CheckState.Ok) low.Add(v.Name);
                 if (st > worst) worst = st;
             }
-            string advice = worst == CheckState.Ok ? "" : L.F("Poco spazio libero su {0}: svuota il Cestino e i file temporanei (Impostazioni > Sistema > Archiviazione > File temporanei) e sposta o elimina i file grandi.",
-                                                              "Low free space on {0}: empty the Recycle Bin and temporary files (Settings > System > Storage > Temporary files) and move or delete large files.", string.Join(", ", low));
+            string advice = worst == CheckState.Ok ? "" : L.F("Poco spazio libero su {0}: con Pulizia disco elimina file temporanei e cache (e, se non ti serve, il Cestino); con Spazio su disco trova le cartelle più grandi da spostare o eliminare.",
+                                                              "Low free space on {0}: use Disk cleanup to delete temporary files and caches (and, if you don't need it, the Recycle Bin); use Disk space to find the largest folders to move or delete.", string.Join(", ", low));
             Set(c, worst, string.Join(" · ", parts), advice);
         }
 
@@ -545,7 +545,7 @@ namespace AppSys
             if (bin >= 0) c.Extra.Add(L.F("Cestino: {0}", "Recycle Bin: {0}", Fmt.Bytes(bin)));
             long total = temp + Math.Max(0, bin);
             string detail = L.F("{0} recuperabili", "{0} recoverable", Fmt.Bytes(total));
-            if (total > (10L << 30)) Set(c, CheckState.Warn, detail, L.T("Puoi liberare molto spazio svuotando il Cestino e i file temporanei.", "You can free a lot of space by emptying the Recycle Bin and temporary files."));
+            if (total > (10L << 30)) Set(c, CheckState.Warn, detail, L.T("Puoi liberare molto spazio con Pulizia disco (file temporanei e, se non ti serve più, il Cestino).", "You can free a lot of space with Disk cleanup (temporary files and, if you no longer need it, the Recycle Bin)."));
             else Set(c, total > (2L << 30) ? CheckState.Info : CheckState.Ok, detail);
         }
 

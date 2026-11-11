@@ -110,7 +110,11 @@ namespace AppSys
             btnSave.Click += delegate { SaveReport(); };
             btnClose.Click += delegate { Close(); };
             CancelButton = btnClose;
-            bar.Controls.AddRange(new Control[] { btnStart, btnCopy, btnSave, btnClose });
+            var btnSpace = new Button { Text = L.T("Spazio su disco...", "Disk space..."), Size = new Size(150, 30) };
+            var btnClean = new Button { Text = L.T("Pulizia disco...", "Disk cleanup..."), Size = new Size(140, 30) };
+            btnSpace.Click += delegate { DiskSpaceForm.ShowOnce(Icon, null); };
+            btnClean.Click += delegate { CleanupForm.ShowOnce(Icon); };
+            bar.Controls.AddRange(new Control[] { btnStart, btnCopy, btnSave, btnSpace, btnClean, btnClose });
 
             if (ai)
             {

@@ -29,6 +29,19 @@
   *Mostra in primo piano*, *Sempre in primo piano* ed *Esci* (solo mentre l'app è in esecuzione)
 - L'icona nella tray mostra l'**uso della CPU** in tempo reale; il tooltip riassume CPU, RAM e spazio libero
 
+### Spazio su disco
+Cartelle e file di un disco ordinati per dimensione, con una barra proporzionale: **doppio clic per entrare** in una
+cartella, *Su* per tornare indietro, tasto destro per aprirla in Esplora file o copiarne il percorso. Il calcolo gira
+in background e ricorda le cartelle già viste, così la navigazione è immediata. Non segue i collegamenti (junction) e non
+conta i file di OneDrive che sono solo nel cloud. Si apre dal menu, dall'analisi o **cliccando un disco nel widget**.
+
+### Pulizia disco
+Elimina in sicurezza, senza permessi di amministratore: file temporanei dell'utente (più vecchi di 24 ore), cache di
+miniature, shader DirectX e file Internet temporanei, segnalazioni errori e dump dei crash e, se li spunti, la cache dei
+browser (non password, cronologia o cookie) e il Cestino. Mostra quanto occupa ogni voce, chiede conferma e salta i file
+in uso. Per i file di sistema apre la Pulizia disco di Windows. Cancella solo nella cartella temporanea e in un elenco
+chiuso di cartelle di cache, mai seguendo collegamenti.
+
 ### Avvisi
 Un fumetto quando qualcosa resta al limite: CPU sopra il 90% per 2 minuti, RAM sopra il 92%, PC molto caldo,
 disco quasi pieno, batteria quasi scarica. Indica il processo responsabile; cliccandolo si apre l'analisi.

@@ -54,6 +54,11 @@ namespace AppSys
                 SysMonitor.HistoryEnabled = false;
                 WidgetForm.SnapshotPath = args[1];
                 WidgetForm.SnapshotAi = args.Length > 2 && args[2].Equals("ai", StringComparison.OrdinalIgnoreCase);
+                if (args.Length > 2 && (args[2].Equals("space", StringComparison.OrdinalIgnoreCase) || args[2].Equals("cleanup", StringComparison.OrdinalIgnoreCase)))
+                {
+                    WidgetForm.SnapshotWindow = args[2].ToLowerInvariant();
+                    WidgetForm.SnapshotArg = args.Length > 3 ? args[3] : null;
+                }
                 WidgetForm.SnapshotAnalysis = WidgetForm.SnapshotAi || (args.Length > 2 && args[2].Equals("analysis", StringComparison.OrdinalIgnoreCase));
                 Application.Run(new WidgetForm("snapshot"));
                 return;
@@ -221,6 +226,8 @@ namespace AppSys
             var miAnalysis = Mi("Analisi approfondita...", "In-depth analysis...", delegate { AnalysisForm.ShowOnce(appIcon); });
             miAnalysis.Font = new Font(menu.Font, FontStyle.Bold);
             menu.Items.Add(miAnalysis);
+            menu.Items.Add(Mi("Spazio su disco...", "Disk space...", delegate { DiskSpaceForm.ShowOnce(appIcon, null); }));
+            menu.Items.Add(Mi("Pulizia disco...", "Disk cleanup...", delegate { CleanupForm.ShowOnce(appIcon); }));
             menu.Items.Add(Mi("Assistente AI...", "AI assistant...", delegate { AiSettingsForm.ShowOnce(appIcon, null); }));
             menu.Items.Add(Mi("Gestione attività", "Task Manager", delegate { Launch("taskmgr.exe", ""); }));
             menu.Items.Add(Mi("Copia stato attuale", "Copy current status", delegate { try { Clipboard.SetText(StatusText()); tray.ShowBalloonTip(1500, "AppSys", L.T("Stato copiato negli appunti", "Status copied to clipboard"), ToolTipIcon.Info); } catch { } }));
@@ -321,14 +328,32 @@ namespace AppSys
             };
             tray.BalloonTipClosed += delegate { balloonIsUpdate = false; };
 
-            // ----- mouse: trascina per spostare, doppio clic apre l'analisi -----
+            // ----- mouse: trascina per spostare, clic su un disco apre lo spazio su disco, doppio clic l'analisi -----
             MouseDown += (s, e) =>
             {
                 if (e.Button != MouseButtons.Left) return;
-                if (e.Clicks == 2) { AnalysisForm.ShowOnce(appIcon); return; }
-                ReleaseCapture();
-                SendMessage(Handle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
-                SaveSettings();
+                if (e.Clicks == 2) { pressing = false; if (VolumeAt(e.Location) == null) AnalysisForm.ShowOnce(appIcon); return; }
+                pressing = true;
+                downPt = e.Location;
+            };
+            MouseMove += (s, e) =>
+            {
+                if (pressing && (Math.Abs(e.X - downPt.X) > 4 || Math.Abs(e.Y - downPt.Y) > 4))
+                {
+                    pressing = false;
+                    ReleaseCapture();
+                    SendMessage(Handle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
+                    SaveSettings();
+                    return;
+                }
+                Cursor = VolumeAt(e.Location) != null ? Cursors.Hand : Cursors.Default;
+            };
+            MouseUp += (s, e) =>
+            {
+                if (!pressing) return;
+                pressing = false;
+                string v = VolumeAt(e.Location);
+                if (v != null) DiskSpaceForm.ShowOnce(appIcon, v);
             };
 
             LoadSettings();
@@ -730,6 +755,17 @@ namespace AppSys
             y += RowH;
         }
 
+        // Righe dei dischi nel widget (per il clic che apre lo spazio su disco)
+        readonly List<KeyValuePair<Rectangle, string>> volumeHits = new List<KeyValuePair<Rectangle, string>>();
+        bool pressing;
+        Point downPt;
+
+        string VolumeAt(Point pt)
+        {
+            foreach (var h in volumeHits) if (h.Key.Contains(pt)) return h.Value;
+            return null;
+        }
+
         int LabelW { get { return Math.Max(40, TextW(L.T("DISCO", "DISK"), fLabel) + 10); } }
 
         int Render(Graphics g)
@@ -737,6 +773,7 @@ namespace AppSys
             var p = Pal();
             var s = SysMonitor.Instance.Current;
             int W = Width, y = Pad;
+            volumeHits.Clear();
             if (g != null)
             {
                 using (var pen = new Pen(p.Border)) g.DrawRectangle(pen, 0, 0, W - 1, Height - 1);
@@ -777,7 +814,10 @@ namespace AppSys
                 }
                 if (s.DiskBusy >= 0) y += RowH;
                 foreach (var v in s.Volumes)
+                {
+                    volumeHits.Add(new KeyValuePair<Rectangle, string>(new Rectangle(0, y, W, RowH), v.Name));
                     BarRow(g, p, ref y, v.Name, v.UsedPct, p.Accent, Fmt.Pct(v.UsedPct), L.F("{0} liberi", "{0} free", Fmt.Bytes(v.Free)));
+                }
             }
 
             if (showNet)
@@ -1098,6 +1138,7 @@ namespace AppSys
             }
         }
 
+        public static string SnapshotWindow, SnapshotArg;   // /snapshot <file> space [cartella] | cleanup
         public static bool SnapshotAi;   // /snapshot <file> ai: analisi + "Spiega" (con l'assistente configurato)
         bool aiStarted;
 
@@ -1106,7 +1147,22 @@ namespace AppSys
             var t = new WinTimer { Interval = 7000 };
             t.Tick += delegate
             {
-                if (SnapshotAnalysis)
+                if (SnapshotWindow == "space")
+                {
+                    var f = DiskSpaceForm.Current;
+                    if (f == null) { DiskSpaceForm.ShowOnce(appIcon, SnapshotArg); t.Interval = 1000; return; }
+                    if (f.Busy) return;
+                    Save(f);
+                }
+                else if (SnapshotWindow == "cleanup")
+                {
+                    var f = CleanupForm.Current;
+                    if (f == null) { CleanupForm.ShowOnce(appIcon); t.Interval = 1000; return; }
+                    if (f.Busy) return;
+                    f.SelectFirst();
+                    Save(f);
+                }
+                else if (SnapshotAnalysis)
                 {
                     var f = AnalysisForm.Current;
                     if (f == null) { AnalysisForm.ShowOnce(appIcon); t.Interval = 1000; return; }
