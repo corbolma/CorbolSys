@@ -86,7 +86,7 @@ namespace AppSys
     // Dimensione del testo di menu e finestre (il predefinito di Windows è 9 pt)
     static class UiFont
     {
-        public const float Pt = 10.5f;
+        public const float Pt = 11f;   // come AppIP
         public static readonly float Scale = Pt / 9f;   // le coordinate delle finestre sono pensate per 9 pt
     }
 
@@ -121,17 +121,32 @@ namespace AppSys
                 Text = L.T("Monitor del sistema sul desktop, con analisi approfondita e assistente AI", "System monitor on your desktop, with in-depth analysis and AI assistant"),
                 AutoSize = true, MaximumSize = new Size(260, 0), Location = new Point(84, 50), ForeColor = Color.DimGray
             };
-            var author = new Label { Text = "© 2026 " + AppVersion.Author + " · " + L.T("Licenza MIT", "MIT License"), AutoSize = true, Location = new Point(84, 100) };
+            var author = new Label { Text = "© 2026 " + AppVersion.Author, AutoSize = true, Location = new Point(84, 90) };
+            var blue = Color.FromArgb(37, 99, 235);
+            string lic = L.T("Licenza MIT", "MIT License");
+            var links = new LinkLabel
+            {
+                Text = lic + "  ·  GitHub", AutoSize = true, Location = new Point(84, 112),
+                LinkColor = blue, ActiveLinkColor = blue, LinkBehavior = LinkBehavior.HoverUnderline
+            };
+            links.Links.Clear();
+            links.Links.Add(0, lic.Length, AppVersion.RepoUrl + "/blob/main/LICENSE");
+            links.Links.Add(lic.Length + 5, 6, AppVersion.RepoUrl);
+            links.LinkClicked += (s, e) =>
+            {
+                try { Process.Start(new ProcessStartInfo((string)e.Link.LinkData) { UseShellExecute = true }); } catch { }
+            };
             var ok = new Button { Text = "OK", Size = new Size(90, 30) };
             ok.Click += delegate { Close(); };
             AcceptButton = CancelButton = ok;
-            Controls.AddRange(new Control[] { pic, title, desc, author, ok });
-            ClientSize = new Size(360, 180);
+            Controls.AddRange(new Control[] { pic, title, desc, author, links, ok });
+            ClientSize = new Size(360, 200);
             Scale(new SizeF(UiFont.Scale, UiFont.Scale));
             Load += delegate
             {
                 author.Top = desc.Bottom + 14;
-                ok.Location = new Point(ClientSize.Width - 16 - ok.Width, author.Bottom + 16);
+                links.Top = author.Bottom + 4;
+                ok.Location = new Point(ClientSize.Width - 16 - ok.Width, links.Bottom + 16);
                 ClientSize = new Size(ClientSize.Width, ok.Bottom + 14);
             };
         }
@@ -164,7 +179,7 @@ namespace AppSys
         readonly Font fTitle = new Font("Segoe UI Semibold", 13f);
         readonly Font fLabel = new Font("Segoe UI", 8.5f);
         readonly Font fSmall = new Font("Segoe UI", 7.5f);
-        readonly Font fValue = new Font("Consolas", 9.5f);
+        readonly Font fValue = new Font("Consolas", 10f);
         readonly string settingsPath;
 
         // impostazioni
@@ -189,7 +204,7 @@ namespace AppSys
             ShowInTaskbar = false;
             StartPosition = FormStartPosition.Manual;
             DoubleBuffered = true;
-            Width = 310;
+            Width = 330;
             Height = 300;
             L.Set(ReadSetting("lang") ?? "auto");
 
@@ -568,7 +583,7 @@ namespace AppSys
         }
 
         // ===================== Disegno =====================
-        const int Pad = 14, RowH = 19, GraphH = 38;
+        const int Pad = 14, RowH = 18, GraphH = 34;   // come AppIP
 
         Palette Pal()
         {
@@ -616,7 +631,7 @@ namespace AppSys
 
         void ResizeToContent()
         {
-            int w = compact ? 250 : 310;
+            int w = compact ? 270 : 330;   // come AppIP
             int h = Render(null);
             if (Width != w || Height != h) Size = new Size(w, h);
         }
@@ -684,7 +699,7 @@ namespace AppSys
             y += 26;
             if (!compact && !string.IsNullOrEmpty(SysMonitor.CpuName))
             {
-                if (g != null) TextRenderer.DrawText(g, ShortCpu(SysMonitor.CpuName) + " · " + Fmt.Bytes(s.RamTotal) + " RAM", fSmall, new Rectangle(Pad, y, W - 2 * Pad, 14), p.Label, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+                if (g != null) TextRenderer.DrawText(g, ShortCpu(SysMonitor.CpuName) + " · " + Fmt.Bytes(s.RamTotal) + " RAM", fLabel, new Rectangle(Pad, y, W - 2 * Pad, 16), p.Label, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
                 y += 16;
             }
             y += 4;
@@ -697,7 +712,7 @@ namespace AppSys
             {
                 y += 3;
                 if (g != null) DrawGraph(g, p, new Rectangle(Pad, y, W - 2 * Pad, GraphH));
-                y += GraphH + 6;
+                y += GraphH + 4;
             }
 
             if (showDisks)
@@ -751,7 +766,7 @@ namespace AppSys
                 y += 6;
                 if (g != null)
                 {
-                    DrawT(g, L.T("PROCESSI", "PROCESSES"), fLabel, Pad, y, p.Label);
+                    DrawT(g, L.T("PROCESSI", "PROCESSES"), fLabel, Pad, y, p.Accent);   // intestazione di sezione blu, come le schede in AppIP
                     DrawRight(g, "CPU      RAM", fSmall, W - Pad, y + 1, p.Label);
                 }
                 y += 17;
