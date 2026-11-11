@@ -354,11 +354,9 @@ namespace AppSys
             };
         }
 
-        static LinkLabel Link(string text, Action click)
+        static LinkText Link(string text, Action click)
         {
-            var l = new LinkLabel { Text = text, AutoSize = true, LinkBehavior = LinkBehavior.HoverUnderline, Margin = new Padding(4, 4, 14, 0) };
-            l.LinkClicked += delegate { click(); };
-            return l;
+            return new LinkText(text, click) { Margin = new Padding(4, 4, 14, 0) };
         }
 
         static void Start(string exe, string args)

@@ -95,6 +95,47 @@ namespace AppSys
         public static readonly float Scale = Pt / 9f;   // le coordinate delle finestre sono pensate per 9 pt
     }
 
+    // Collegamento di testo (blu, manina, sottolineato al passaggio del mouse). Si usa al posto di LinkLabel:
+    // LinkLabel con la sottolineatura al passaggio misura il testo con GDI+ ma lo disegna con GDI, e con
+    // caratteri come Segoe UI 11 pt ridisegna solo una parte del testo, che risulta sovrapposto e "sporco".
+    // Qui al passaggio del mouse cambia il carattere e l'etichetta si ridisegna per intero.
+    class LinkText : Label
+    {
+        static readonly Color Blue = Color.FromArgb(0, 102, 204);
+        Font normal, under;
+
+        public LinkText(string text, Action click)
+        {
+            Text = text;
+            AutoSize = true;
+            ForeColor = Blue;
+            Cursor = Cursors.Hand;
+            UseMnemonic = false;
+            Click += delegate { if (click != null) click(); };
+        }
+
+        protected override void OnFontChanged(EventArgs e)
+        {
+            base.OnFontChanged(e);
+            if (Font != under) { normal = Font; if (under != null) under.Dispose(); under = null; }
+        }
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            base.OnMouseEnter(e);
+            if (under == null) under = new Font(Font, Font.Style | FontStyle.Underline);
+            Font = under;
+            Invalidate();
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            if (normal != null) Font = normal;
+            Invalidate();
+        }
+    }
+
     class AboutForm : Form
     {
         static AboutForm open;
@@ -119,7 +160,26 @@ namespace AppSys
             BackColor = Color.White;
             if (icon != null) Icon = icon;
             var pic = new PictureBox { Location = new Point(20, 20), Size = new Size(48, 48), SizeMode = PictureBoxSizeMode.Zoom };
-            try { pic.Image = new Icon(WidgetForm.IconStream(), 48, 48).ToBitmap(); } catch { }
+            try
+            {
+                // Le immagini in appsys.ico sono PNG (Icon.ToBitmap non le decodifica): si legge quella da 64 px, come in AppIP
+                using (var st = WidgetForm.IconStream())
+                using (var ms = new MemoryStream())
+                {
+                    st.CopyTo(ms);
+                    byte[] d = ms.ToArray();
+                    int n = BitConverter.ToUInt16(d, 4);
+                    for (int i = 0; i < n; i++)
+                    {
+                        int e = 6 + 16 * i;
+                        if (d[e] != 64) continue;
+                        int size = BitConverter.ToInt32(d, e + 8), off = BitConverter.ToInt32(d, e + 12);
+                        using (var img = Image.FromStream(new MemoryStream(d, off, size))) pic.Image = new Bitmap(img);
+                        break;
+                    }
+                }
+            }
+            catch { }
             var title = new Label { Text = "AppSys " + AppVersion.Text, AutoSize = true, Location = new Point(82, 18), Font = new Font("Segoe UI Semibold", 14f * UiFont.Scale) };
             var desc = new Label
             {
@@ -127,20 +187,12 @@ namespace AppSys
                 AutoSize = true, MaximumSize = new Size(260, 0), Location = new Point(84, 50), ForeColor = Color.DimGray
             };
             var author = new Label { Text = "© 2026 " + AppVersion.Author, AutoSize = true, Location = new Point(84, 90) };
-            var blue = Color.FromArgb(37, 99, 235);
-            string lic = L.T("Licenza MIT", "MIT License");
-            var links = new LinkLabel
-            {
-                Text = lic + "  ·  GitHub", AutoSize = true, Location = new Point(84, 112),
-                LinkColor = blue, ActiveLinkColor = blue, LinkBehavior = LinkBehavior.HoverUnderline
-            };
-            links.Links.Clear();
-            links.Links.Add(0, lic.Length, AppVersion.RepoUrl + "/blob/main/LICENSE");
-            links.Links.Add(lic.Length + 5, 6, AppVersion.RepoUrl);
-            links.LinkClicked += (s, e) =>
-            {
-                try { Process.Start(new ProcessStartInfo((string)e.Link.LinkData) { UseShellExecute = true }); } catch { }
-            };
+            Action<string> open = url => { try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { } };
+            // "Licenza MIT · GitHub": due collegamenti affiancati (LinkText, vedi sopra)
+            var links = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Location = new Point(84, 112), Margin = Padding.Empty };
+            links.Controls.Add(new LinkText(L.T("Licenza MIT", "MIT License"), delegate { open(AppVersion.RepoUrl + "/blob/main/LICENSE"); }) { Margin = Padding.Empty });
+            links.Controls.Add(new Label { Text = "  ·  ", AutoSize = true, Margin = Padding.Empty });
+            links.Controls.Add(new LinkText("GitHub", delegate { open(AppVersion.RepoUrl); }) { Margin = Padding.Empty });
             var ok = new Button { Text = "OK", Size = new Size(90, 30) };
             ok.Click += delegate { Close(); };
             AcceptButton = CancelButton = ok;
