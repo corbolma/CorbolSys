@@ -1,0 +1,6 @@
+# Binari compilati
+*.exe
+dist/
+*.pdb
+# anteprima generata da make-icon.ps1
+icon-preview.png
