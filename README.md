@@ -112,6 +112,12 @@ build-installer.bat patch      :: incrementa la versione (1.0.0 -> 1.0.1) e crea
 nelle note la riga `SHA-256: ...` stampata da `build-installer.bat` (la trovi anche in `dist\AppSys-Setup-X.Y.Z.sha256.txt`):
 l'aggiornamento automatico la usa per verificare il file scaricato.
 
+## Lingue
+Interfaccia in **italiano e inglese**: segue la lingua di Windows e si cambia dal menu *Lingua / Language*. Anche
+l'assistente AI risponde nella lingua scelta. Altre lingue si aggiungono con un semplice file di testo, senza
+programmare: vedi [lang/README.md](lang/README.md) e la pagina [Lingue e traduzioni](https://github.com/corbolma/AppSys/wiki/Lingue-e-traduzioni)
+della wiki. `lang-check.ps1` rigenera il modello `lang/_template.txt` e controlla le traduzioni.
+
 ## Privacy
 AppSys non raccoglie dati e non fa connessioni di rete per il monitoraggio. Il controllo degli aggiornamenti
 (`api.github.com`) parte solo da *Controlla ora* o se attivi quello automatico. Cronologia e impostazioni restano in
@@ -142,6 +148,8 @@ and records a per-minute summary (24 hours in memory, optionally 7 days on disk)
   Per-user install, no admin rights required; silent install with `/silent`. **Updates** from GitHub Releases with
   SHA-256 verification (automatic check off by default).
 - **Build:** `build.bat` / `build-installer.bat`, with the C# compiler bundled with Windows (.NET Framework 4.x).
+- **Translations are welcome**: the interface is in English and Italian (it follows the Windows display language and can
+  be changed from *Lingua / Language*); adding a language is just a text file, no coding required — see [lang/README.md](lang/README.md).
 - **Privacy:** no telemetry; monitoring makes no network connections. Data goes out only to the AI service you choose,
   when you press *Explain* or *Ask*, and to `api.github.com` when checking for updates.
 

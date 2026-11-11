@@ -43,29 +43,27 @@ namespace AppSys
 
         public Analysis()
         {
-            string[,] defs =
-            {
-                { "system", "Sistema", "System" },
-                { "cpu", "Processore", "Processor" },
-                { "memory", "Memoria", "Memory" },
-                { "space", "Spazio su disco", "Disk space" },
-                { "health", "Salute dei dischi", "Disk health" },
-                { "diskerr", "Errori dei dischi", "Disk errors" },
-                { "crash", "Arresti anomali", "Crashes" },
-                { "whea", "Errori hardware", "Hardware errors" },
-                { "apps", "Programmi bloccati", "Crashing programs" },
-                { "temp", "Temperatura", "Temperature" },
-                { "battery", "Batteria", "Battery" },
-                { "startup", "Avvio automatico", "Startup programs" },
-                { "updates", "Aggiornamenti di Windows", "Windows Update" },
-                { "av", "Antivirus", "Antivirus" },
-                { "devices", "Dispositivi e driver", "Devices and drivers" },
-                { "junk", "File temporanei", "Temporary files" },
-                { "reliability", "Indice di affidabilità", "Reliability index" }
-            };
-            for (int i = 0; i < defs.GetLength(0); i++)
-                Checks.Add(new SysCheck { Id = defs[i, 0], Title = L.T(defs[i, 1], defs[i, 2]) });
+            // titoli scritti per esteso in L.T: così lang-check.ps1 li trova
+            Add("system", L.T("Sistema", "System"));
+            Add("cpu", L.T("Processore", "Processor"));
+            Add("memory", L.T("Memoria", "Memory"));
+            Add("space", L.T("Spazio su disco", "Disk space"));
+            Add("health", L.T("Salute dei dischi", "Disk health"));
+            Add("diskerr", L.T("Errori dei dischi", "Disk errors"));
+            Add("crash", L.T("Arresti anomali", "Crashes"));
+            Add("whea", L.T("Errori hardware", "Hardware errors"));
+            Add("apps", L.T("Programmi bloccati", "Crashing programs"));
+            Add("temp", L.T("Temperatura", "Temperature"));
+            Add("battery", L.T("Batteria", "Battery"));
+            Add("startup", L.T("Avvio automatico", "Startup programs"));
+            Add("updates", L.T("Aggiornamenti di Windows", "Windows Update"));
+            Add("av", L.T("Antivirus", "Antivirus"));
+            Add("devices", L.T("Dispositivi e driver", "Devices and drivers"));
+            Add("junk", L.T("File temporanei", "Temporary files"));
+            Add("reliability", L.T("Indice di affidabilità", "Reliability index"));
         }
+
+        void Add(string id, string title) { Checks.Add(new SysCheck { Id = id, Title = title }); }
 
         public SysCheck Get(string id) { return Checks.First(c => c.Id == id); }
 
