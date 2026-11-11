@@ -3,8 +3,8 @@ using System.Reflection;
 
 [assembly: AssemblyProduct("AppSys")]
 [assembly: AssemblyCopyright(AppSys.AppVersion.Copyright)]
-[assembly: AssemblyVersion("1.0.1.0")]
-[assembly: AssemblyFileVersion("1.0.1.0")]
+[assembly: AssemblyVersion("1.0.2.0")]
+[assembly: AssemblyFileVersion("1.0.2.0")]
 
 namespace AppSys
 {
@@ -13,6 +13,6 @@ namespace AppSys
         public const string Author = "Mauro Corboli";
         public const string Copyright = "Copyright © 2026 " + Author + " - MIT License";
         public const string RepoUrl = "https://github.com/corbolma/AppSys";
-        public const string Text = "1.0.1";
+        public const string Text = "1.0.2";
     }
 }
