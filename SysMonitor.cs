@@ -73,10 +73,24 @@ namespace AppSys
             var ci = CultureInfo.InvariantCulture;
             return string.Join(";", new[]
             {
-                Time.ToString("yyyy-MM-dd HH:mm", ci), CpuAvg.ToString("0.0", ci), CpuMax.ToString("0.0", ci), RamAvg.ToString("0.0", ci),
-                GpuAvg.ToString("0.0", ci), DiskBusyAvg.ToString("0.0", ci), TempMax.ToString("0.0", ci),
+                // valori interi: Excel li legge come numeri con qualunque separatore decimale
+                Time.ToString("yyyy-MM-dd HH:mm", ci), CpuAvg.ToString("0", ci), CpuMax.ToString("0", ci), RamAvg.ToString("0", ci),
+                GpuAvg.ToString("0", ci), DiskBusyAvg.ToString("0", ci), TempMax.ToString("0", ci),
                 (DiskReadAvg / 1024).ToString("0", ci), (DiskWriteAvg / 1024).ToString("0", ci), (NetRxAvg / 1024).ToString("0", ci), (NetTxAvg / 1024).ToString("0", ci),
                 TopCpu.Replace(";", ","), TopMem.Replace(";", ",")
+            });
+        }
+
+        // Intestazione del file, nella lingua dell'interfaccia (chi legge il file la salta: non è una riga di dati)
+        public static string CsvHeader()
+        {
+            return string.Join(";", new[]
+            {
+                L.T("data e ora", "date and time"), L.T("CPU media %", "CPU average %"), L.T("CPU massima %", "CPU peak %"), "RAM %", "GPU %",
+                L.T("attività dischi %", "disk activity %"), L.T("temperatura massima °C", "peak temperature °C"),
+                L.T("lettura dischi KB/s", "disk read KB/s"), L.T("scrittura dischi KB/s", "disk write KB/s"),
+                "download KB/s", "upload KB/s",
+                L.T("processo con più CPU", "top CPU process"), L.T("processo con più memoria", "top memory process")
             });
         }
 
@@ -348,6 +362,9 @@ namespace AppSys
                 try
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(HistoryPath));
+                    // file nuovo: BOM UTF-8 (Excel legge bene accenti e °) e intestazione
+                    if (!File.Exists(HistoryPath) || new FileInfo(HistoryPath).Length == 0)
+                        File.WriteAllText(HistoryPath, MinuteStat.CsvHeader() + "\r\n", new UTF8Encoding(true));
                     File.AppendAllText(HistoryPath, ms.ToCsv() + "\r\n", new UTF8Encoding(false));
                 }
                 catch { }
@@ -361,6 +378,8 @@ namespace AppSys
             {
                 if (!File.Exists(HistoryPath)) return;
                 var lines = File.ReadAllLines(HistoryPath);
+                // senza intestazione: file delle versioni 1.0.0-1.0.1, con i decimali col punto
+                bool hasHeader = lines.Length > 0 && MinuteStat.FromCsv(lines[0]) == null;
                 var keep = new List<string>();
                 var from = DateTime.Now.AddDays(-FileDays);
                 var memFrom = DateTime.Now.AddMinutes(-MemoryMinutes);
@@ -368,10 +387,15 @@ namespace AppSys
                 {
                     var ms = MinuteStat.FromCsv(ln);
                     if (ms == null || ms.Time < from) continue;
-                    keep.Add(ln);
+                    keep.Add(hasHeader ? ln : ms.ToCsv());   // le righe vecchie si riscrivono nel formato nuovo (numeri interi)
                     if (ms.Time >= memFrom) lock (minutes) minutes.Add(ms);
                 }
-                if (keep.Count < lines.Length) File.WriteAllLines(HistoryPath, keep, new UTF8Encoding(false));
+                // si riscrive se ci sono righe vecchie da togliere o se manca l'intestazione; mai con /report o /snapshot
+                if (HistoryEnabled && (!hasHeader || keep.Count < lines.Length - 1))
+                {
+                    keep.Insert(0, hasHeader ? lines[0] : MinuteStat.CsvHeader());
+                    File.WriteAllLines(HistoryPath, keep, new UTF8Encoding(true));
+                }
             }
             catch { }
         }

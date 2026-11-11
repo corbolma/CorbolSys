@@ -213,12 +213,13 @@ namespace AppSys
             menu.Items.Add(new ToolStripMenuItem("AppSys " + AppVersion.Text) { Enabled = false });
             // compare solo quando c'è una versione più recente
             miUpdateAvail = new ToolStripMenuItem("", null, delegate { OfferUpdate(); }) { Visible = false };
-            miUpdateAvail.Font = new Font(miUpdateAvail.Font, FontStyle.Bold);
+            // grassetto a partire dal font del menu: la voce, non ancora nel menu, avrebbe quello predefinito (9 pt)
+            miUpdateAvail.Font = new Font(menu.Font, FontStyle.Bold);
             relabel.Add(delegate { if (updVersion != null) miUpdateAvail.Text = L.F("Aggiorna ad AppSys {0}...", "Update to AppSys {0}...", updVersion); });
             menu.Items.Add(miUpdateAvail);
             menu.Items.Add(new ToolStripSeparator());
             var miAnalysis = Mi("Analisi approfondita...", "In-depth analysis...", delegate { AnalysisForm.ShowOnce(appIcon); });
-            miAnalysis.Font = new Font(miAnalysis.Font, FontStyle.Bold);
+            miAnalysis.Font = new Font(menu.Font, FontStyle.Bold);
             menu.Items.Add(miAnalysis);
             menu.Items.Add(Mi("Assistente AI...", "AI assistant...", delegate { AiSettingsForm.ShowOnce(appIcon, null); }));
             menu.Items.Add(Mi("Gestione attività", "Task Manager", delegate { Launch("taskmgr.exe", ""); }));
