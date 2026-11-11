@@ -60,7 +60,7 @@ namespace AppSys
             }
             try { SetCurrentProcessExplicitAppUserModelID(AppUserModelId); } catch { }
             string cmd = args.Length > 0 ? args[0].TrimStart('/', '-').ToLowerInvariant() : "front";
-            if (cmd != "exit" && cmd != "analysis") cmd = "front";
+            if (cmd != "exit" && cmd != "analysis" && cmd != "topmost") cmd = "front";
             bool createdNew;
             using (var mutex = new Mutex(true, "AppSys_SingleInstance", out createdNew))
             {
@@ -341,9 +341,12 @@ namespace AppSys
             if (SnapshotPath == null)
             {
                 ListenCommand("analysis", delegate { AnalysisForm.ShowOnce(appIcon); });
+                ListenCommand("topmost", delegate { if (!Visible) ToggleWidget(); SetTopMost(!topMostMode); SaveSettings(); });
                 ListenCommand("exit", Close);
+                Load += delegate { UpdateJumpList(); };
             }
             if (startCmd == "analysis") Shown += delegate { AnalysisForm.ShowOnce(appIcon); };
+            if (startCmd == "topmost") Load += delegate { SetTopMost(true); SaveSettings(); };
 
             SysMonitor.Instance.Start();
             paintTimer = new WinTimer { Interval = 1000 };
@@ -389,8 +392,54 @@ namespace AppSys
             L.Set(key);
             foreach (var a in relabel) a();
             SaveSettings();
+            if (SnapshotPath == null) UpdateJumpList();
             ResizeToContent();
             Invalidate();
+        }
+
+        // ---------- Jump List (tasto destro sull'icona fissata nella barra delle applicazioni) ----------
+        // Compare sull'icona fissata dal menu Start: il collegamento creato dall'installer ha lo stesso
+        // AppUserModelID dell'app (Program.AppUserModelId). Le voci esistono solo mentre AppSys è aperta.
+        void UpdateJumpList()
+        {
+            try
+            {
+                string exe = Application.ExecutablePath;
+                var jl = new System.Windows.Shell.JumpList { ShowFrequentCategory = false, ShowRecentCategory = false };
+                jl.JumpItems.Add(new System.Windows.Shell.JumpTask
+                {
+                    Title = L.T("Analisi approfondita", "In-depth analysis"),
+                    Description = L.T("Controlla la salute del PC", "Checks the health of the PC"),
+                    ApplicationPath = exe, Arguments = "/analysis", IconResourcePath = exe
+                });
+                jl.JumpItems.Add(new System.Windows.Shell.JumpTask
+                {
+                    Title = L.T("Mostra in primo piano", "Bring to front"),
+                    Description = L.T("Porta il widget sopra le altre finestre", "Show the widget above other windows"),
+                    ApplicationPath = exe, Arguments = "/front", IconResourcePath = exe
+                });
+                jl.JumpItems.Add(new System.Windows.Shell.JumpTask
+                {
+                    Title = L.T("Sempre in primo piano (sì/no)", "Always on top (on/off)"),
+                    Description = L.T("Attiva o disattiva Sempre in primo piano", "Turn Always on top on or off"),
+                    ApplicationPath = exe, Arguments = "/topmost", IconResourcePath = exe
+                });
+                jl.JumpItems.Add(new System.Windows.Shell.JumpTask
+                {
+                    Title = L.T("Esci da AppSys", "Exit AppSys"),
+                    Description = L.T("Chiude l'app se è aperta", "Closes the app if it is running"),
+                    ApplicationPath = exe, Arguments = "/exit", IconResourcePath = exe
+                });
+                jl.Apply();
+            }
+            catch { }
+        }
+
+        // All'uscita si svuota: le voci servono solo mentre AppSys è aperta
+        static void ClearJumpList()
+        {
+            try { new System.Windows.Shell.JumpList { ShowFrequentCategory = false, ShowRecentCategory = false }.Apply(); }
+            catch { }
         }
 
         string ReadSetting(string key)
@@ -1131,6 +1180,7 @@ namespace AppSys
         {
             SaveSettings();
             SystemEvents.UserPreferenceChanged -= OnUserPrefChanged;
+            if (SnapshotPath == null) ClearJumpList();
             SysMonitor.Instance.Stop();
             LocalAi.Instance.Stop();
             tray.Visible = false;

@@ -7,6 +7,8 @@ if not exist "%CSC%" (
   echo Compilatore csc.exe non trovato.
   exit /b 1
 )
+rem WPF: serve solo per la Jump List (System.Windows.Shell)
+for %%I in ("%CSC%") do set WPF=%%~dpIWPF
 cd /d "%~dp0"
 if not exist appsys.ico powershell -NoProfile -ExecutionPolicy Bypass -File make-icon.ps1
 rem Traduzioni: ogni lang\*.txt (tranne _template.txt) viene incorporato nell'exe
@@ -16,6 +18,7 @@ if exist lang for %%F in (lang\*.txt) do if /i not "%%~nF"=="_template" call set
   /win32icon:appsys.ico /resource:appsys.ico,AppSys.appsys.ico ^
   /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Core.dll /r:System.Web.Extensions.dll /r:System.Security.dll ^
   /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:System.Management.dll ^
+  /r:"%WPF%\PresentationFramework.dll" /r:"%WPF%\PresentationCore.dll" /r:"%WPF%\WindowsBase.dll" /r:System.Xaml.dll ^
   AppSys.cs SysMonitor.cs Analysis.cs AnalysisForm.cs SysTools.cs Ai.cs AiLocal.cs ClaudeCode.cs AiSettingsForm.cs Anon.cs Version.cs Lang.cs %LANGRES%
 if errorlevel 1 (
   echo Compilazione fallita.

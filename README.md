@@ -25,6 +25,8 @@
 - **Processi più pesanti** (raggruppati per nome: CPU e memoria privata)
 - Nome del PC, modello della CPU e da quanto è acceso
 - Il widget resta **incollato al desktop** (visibile anche con Win+D), si trascina dove vuoi; **doppio clic** apre l'analisi
+- Fissata alla barra delle applicazioni (dal menu Start), il tasto destro sull'icona offre *Analisi approfondita*,
+  *Mostra in primo piano*, *Sempre in primo piano* ed *Esci* (solo mentre l'app è in esecuzione)
 - L'icona nella tray mostra l'**uso della CPU** in tempo reale; il tooltip riassume CPU, RAM e spazio libero
 
 ### Avvisi
@@ -96,6 +98,7 @@ l'installer, ne verifica lo SHA-256 e lo avvia. Il controllo automatico (una vol
 ```bat
 AppSys.exe                    :: avvia il widget (o lo porta in primo piano)
 AppSys.exe /analysis          :: apre l'analisi approfondita
+AppSys.exe /topmost           :: attiva/disattiva "Sempre in primo piano"
 AppSys.exe /exit              :: chiude AppSys
 AppSys.exe /report file.txt   :: analisi completa salvata su file, senza interfaccia (per l'IT o gli script)
 ```
