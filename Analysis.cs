@@ -80,6 +80,10 @@ namespace AppSys
 
         public void Run()
         {
+            // Appena avviata (per esempio con /analysis o dalla Jump List) AppSys non ha ancora il primo campione:
+            // senza aspettarlo memoria, dischi e batteria risulterebbero vuoti. Di solito arriva in 1-2 secondi.
+            var wait = System.Diagnostics.Stopwatch.StartNew();
+            while (SysMonitor.Instance.Current.RamTotal == 0 && wait.ElapsedMilliseconds < 20000 && !Cancelled()) System.Threading.Thread.Sleep(200);
             try { Domain = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().DomainName ?? ""; } catch { }
             var steps = new List<KeyValuePair<string, Action<SysCheck>>>
             {

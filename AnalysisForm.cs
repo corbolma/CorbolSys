@@ -123,7 +123,8 @@ namespace AppSys
                 var head = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
                 btnExplain = new Button { Text = L.T("Spiega con l'AI", "Explain with AI"), Size = new Size(140, 30), Enabled = false };
                 var btnNew = new Button { Text = L.T("Nuova conversazione", "New conversation"), Size = new Size(160, 30) };
-                var lnkSent = new LinkText(L.T("Cosa viene inviato", "What is sent"), delegate { ShowSent(); }) { Margin = new Padding(8, 9, 0, 0) };
+                var lnkSent = new Button { Text = L.T("Cosa viene inviato...", "What is sent..."), AutoSize = true, MinimumSize = new Size(0, 30) };
+                lnkSent.Click += delegate { ShowSent(); };
                 btnExplain.Click += delegate { RunAi(null); };
                 btnNew.Click += delegate { if (aiCts == null) ResetConversation(true); };
                 head.Controls.AddRange(new Control[] { btnExplain, btnNew, lnkSent });

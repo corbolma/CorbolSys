@@ -329,10 +329,11 @@ namespace AppSys
             lblTotal = new Label { Location = new Point(16, 362), Size = new Size(528, 24), Font = new Font("Segoe UI Semibold", UiFont.Pt + 1f) };
             lblStatus = new Label { Location = new Point(16, 388), Size = new Size(528, 40), ForeColor = Color.DimGray };
 
-            var links = new FlowLayoutPanel { Location = new Point(12, 430), Size = new Size(536, 28), WrapContents = false };
-            links.Controls.Add(Link(L.T("Pulizia file di sistema di Windows...", "Windows system file cleanup..."), delegate { Start("cleanmgr.exe", "/d " + (Environment.GetEnvironmentVariable("SystemDrive") ?? "C:").TrimEnd(':', '\\')); }));
-            links.Controls.Add(Link(L.T("Sensore memoria", "Storage Sense"), delegate { Start("ms-settings:storagesense", ""); }));
-            links.Controls.Add(Link(L.T("Spazio su disco...", "Disk space..."), delegate { DiskSpaceForm.ShowOnce(this.icon, null); }));
+            // altri strumenti: pulsanti come Pulisci e Chiudi, su una riga sopra di loro
+            var links = new FlowLayoutPanel { Location = new Point(12, 426), Size = new Size(536, 36), WrapContents = false };
+            links.Controls.Add(Tool(L.T("Pulizia file di sistema di Windows...", "Windows system file cleanup..."), delegate { Start("cleanmgr.exe", "/d " + (Environment.GetEnvironmentVariable("SystemDrive") ?? "C:").TrimEnd(':', '\\')); }));
+            links.Controls.Add(Tool(L.T("Sensore memoria", "Storage Sense"), delegate { Start("ms-settings:storagesense", ""); }));
+            links.Controls.Add(Tool(L.T("Spazio su disco...", "Disk space..."), delegate { DiskSpaceForm.ShowOnce(this.icon, null); }));
 
             btnClean = new Button { Text = L.T("Pulisci", "Clean up"), Location = new Point(338, 470), Size = new Size(100, 30), Enabled = false };
             btnClean.Font = new Font(Font, FontStyle.Bold);
@@ -354,9 +355,11 @@ namespace AppSys
             };
         }
 
-        static LinkText Link(string text, Action click)
+        static Button Tool(string text, Action click)
         {
-            return new LinkText(text, click) { Margin = new Padding(4, 4, 14, 0) };
+            var b = new Button { Text = text, AutoSize = true, MinimumSize = new Size(0, 30), Margin = new Padding(4, 2, 6, 0) };
+            b.Click += delegate { click(); };
+            return b;
         }
 
         static void Start(string exe, string args)

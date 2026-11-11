@@ -95,44 +95,27 @@ namespace AppSys
         public static readonly float Scale = Pt / 9f;   // le coordinate delle finestre sono pensate per 9 pt
     }
 
-    // Collegamento di testo (blu, manina, sottolineato al passaggio del mouse). Si usa al posto di LinkLabel:
-    // LinkLabel con la sottolineatura al passaggio misura il testo con GDI+ ma lo disegna con GDI, e con
-    // caratteri come Segoe UI 11 pt ridisegna solo una parte del testo, che risulta sovrapposto e "sporco".
-    // Qui al passaggio del mouse cambia il carattere e l'etichetta si ridisegna per intero.
+    // Collegamento di testo: blu, sempre sottolineato, con la manina; al passaggio del mouse non cambia nulla.
+    // Si usa al posto di LinkLabel, che con la sottolineatura al passaggio del mouse misura il testo con GDI+ e
+    // lo disegna con GDI: con Segoe UI 11 pt ridisegnava solo parte del testo, sovrapposto.
     class LinkText : Label
     {
-        static readonly Color Blue = Color.FromArgb(0, 102, 204);
-        Font normal, under;
-
         public LinkText(string text, Action click)
         {
             Text = text;
             AutoSize = true;
-            ForeColor = Blue;
+            ForeColor = Color.FromArgb(0, 102, 204);
             Cursor = Cursors.Hand;
             UseMnemonic = false;
             Click += delegate { if (click != null) click(); };
         }
 
-        protected override void OnFontChanged(EventArgs e)
+        // Testo sempre sottolineato, con il carattere della finestra (la larghezza non cambia)
+        protected override void OnPaint(PaintEventArgs e)
         {
-            base.OnFontChanged(e);
-            if (Font != under) { normal = Font; if (under != null) under.Dispose(); under = null; }
-        }
-
-        protected override void OnMouseEnter(EventArgs e)
-        {
-            base.OnMouseEnter(e);
-            if (under == null) under = new Font(Font, Font.Style | FontStyle.Underline);
-            Font = under;
-            Invalidate();
-        }
-
-        protected override void OnMouseLeave(EventArgs e)
-        {
-            base.OnMouseLeave(e);
-            if (normal != null) Font = normal;
-            Invalidate();
+            using (var f = new Font(Font, Font.Style | FontStyle.Underline))
+                TextRenderer.DrawText(e.Graphics, Text, f, ClientRectangle, Enabled ? ForeColor : SystemColors.GrayText,
+                                      TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
         }
     }
 
