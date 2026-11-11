@@ -3,7 +3,14 @@
 <p align="center">
   Monitor del sistema per Windows, in stile <i>conky</i>: CPU, RAM, GPU, dischi, rete, temperatura, batteria e processi,
   con avvisi, analisi approfondita del PC e assistente AI.<br>
-  Fratello di <a href="https://github.com/corbolma/AppIP">AppIP</a>: stessa struttura, stesso assistente AI.
+  Fratello di <a href="https://github.com/corbolma/AppIP">AppIP</a>: stessa struttura, stesso assistente AI.<br>
+  <a href="#english">English below</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/corbolma/AppSys/releases/latest"><b>⬇ Scarica l'ultima versione</b></a> ·
+  <a href="https://github.com/corbolma/AppSys/wiki">Wiki</a> ·
+  <a href="https://github.com/corbolma/AppSys/issues">Segnala un problema</a>
 </p>
 
 ---
