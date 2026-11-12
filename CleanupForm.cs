@@ -326,24 +326,35 @@ namespace AppSys
 
             lblDesc = new Label { Location = new Point(16, 296), Size = new Size(528, 62), ForeColor = Color.DimGray,
                                   Text = L.T("Seleziona una voce per vedere cosa contiene.", "Select an item to see what it contains.") };
-            lblTotal = new Label { Location = new Point(16, 362), Size = new Size(528, 24), Font = new Font("Segoe UI Semibold", UiFont.Pt + 1f) };
-            lblStatus = new Label { Location = new Point(16, 388), Size = new Size(528, 40), ForeColor = Color.DimGray };
+            lblTotal = new Label { Location = new Point(16, 360), Size = new Size(528, 26), Font = new Font("Segoe UI Semibold", UiFont.Pt + 1f) };
+            lblStatus = new Label { Location = new Point(16, 386), Size = new Size(528, 24), ForeColor = Color.DimGray, AutoEllipsis = true };
 
             // altri strumenti: pulsanti come Pulisci e Chiudi, su una riga sopra di loro
-            var links = new FlowLayoutPanel { Location = new Point(12, 426), Size = new Size(536, 36), WrapContents = false };
+            var links = new FlowLayoutPanel { Location = new Point(12, 412), Size = new Size(536, 36), WrapContents = false };
             links.Controls.Add(Tool(L.T("Pulizia file di sistema di Windows...", "Windows system file cleanup..."), delegate { Start("cleanmgr.exe", "/d " + (Environment.GetEnvironmentVariable("SystemDrive") ?? "C:").TrimEnd(':', '\\')); }));
             links.Controls.Add(Tool(L.T("Sensore memoria", "Storage Sense"), delegate { Start("ms-settings:storagesense", ""); }));
             links.Controls.Add(Tool(L.T("Spazio su disco...", "Disk space..."), delegate { DiskSpaceForm.ShowOnce(this.icon, null); }));
 
-            btnClean = new Button { Text = L.T("Pulisci", "Clean up"), Location = new Point(338, 470), Size = new Size(100, 30), Enabled = false };
-            btnClose = new Button { Text = L.T("Chiudi", "Close"), Location = new Point(444, 470), Size = new Size(100, 30) };
+            btnClean = new Button { Text = L.T("Pulisci", "Clean up"), Location = new Point(338, 456), Size = new Size(100, 30), Enabled = false };
+            btnClose = new Button { Text = L.T("Chiudi", "Close"), Location = new Point(444, 456), Size = new Size(100, 30) };
             btnClean.Click += delegate { CleanSelected(); };
             btnClose.Click += delegate { Close(); };
             CancelButton = btnClose;
 
             Controls.AddRange(new Control[] { intro, list, lblDesc, lblTotal, lblStatus, links, btnClean, btnClose });
-            ClientSize = new Size(560, 514);
+            ClientSize = new Size(560, 500);
             Scale(new SizeF(UiFont.Scale, UiFont.Scale));
+            // l'elenco alto quanto le sue voci (dipende da font e schermo): niente spazio vuoto sotto l'ultima
+            Load += delegate
+            {
+                if (list.Items.Count == 0) return;
+                int need = list.GetItemRect(list.Items.Count - 1).Bottom + (list.Height - list.ClientSize.Height) + 4;
+                int d = list.Height - need;
+                if (d <= 0) return;
+                list.Height = need;
+                foreach (Control c in Controls) if (c.Top > list.Top) c.Top -= d;
+                ClientSize = new Size(ClientSize.Width, ClientSize.Height - d);
+            };
             Shown += delegate
             {
                 int w = list.ClientSize.Width;
