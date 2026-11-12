@@ -95,30 +95,6 @@ namespace AppSys
         public static readonly float Scale = Pt / 9f;   // le coordinate delle finestre sono pensate per 9 pt
     }
 
-    // Collegamento di testo: blu, sempre sottolineato, con la manina; al passaggio del mouse non cambia nulla.
-    // Si usa al posto di LinkLabel, che con la sottolineatura al passaggio del mouse misura il testo con GDI+ e
-    // lo disegna con GDI: con Segoe UI 11 pt ridisegnava solo parte del testo, sovrapposto.
-    class LinkText : Label
-    {
-        public LinkText(string text, Action click)
-        {
-            Text = text;
-            AutoSize = true;
-            ForeColor = Color.FromArgb(0, 102, 204);
-            Cursor = Cursors.Hand;
-            UseMnemonic = false;
-            Click += delegate { if (click != null) click(); };
-        }
-
-        // Testo sempre sottolineato, con il carattere della finestra (la larghezza non cambia)
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            using (var f = new Font(Font, Font.Style | FontStyle.Underline))
-                TextRenderer.DrawText(e.Graphics, Text, f, ClientRectangle, Enabled ? ForeColor : SystemColors.GrayText,
-                                      TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
-        }
-    }
-
     class AboutForm : Form
     {
         static AboutForm open;
@@ -170,12 +146,22 @@ namespace AppSys
                 AutoSize = true, MaximumSize = new Size(260, 0), Location = new Point(84, 50), ForeColor = Color.DimGray
             };
             var author = new Label { Text = "© 2026 " + AppVersion.Author, AutoSize = true, Location = new Point(84, 90) };
-            Action<string> open = url => { try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { } };
-            // "Licenza MIT · GitHub": due collegamenti affiancati (LinkText, vedi sopra)
-            var links = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Location = new Point(84, 112), Margin = Padding.Empty };
-            links.Controls.Add(new LinkText(L.T("Licenza MIT", "MIT License"), delegate { open(AppVersion.RepoUrl + "/blob/main/LICENSE"); }) { Margin = Padding.Empty });
-            links.Controls.Add(new Label { Text = "  ·  ", AutoSize = true, Margin = Padding.Empty });
-            links.Controls.Add(new LinkText("GitHub", delegate { open(AppVersion.RepoUrl); }) { Margin = Padding.Empty });
+            // "Licenza MIT · GitHub" come in AppIP: un solo LinkLabel con due collegamenti. Sottolineatura sempre presente
+            // (AlwaysUnderline): con HoverUnderline il carattere cambia al passaggio del mouse e il testo si ridisegna male
+            var blue = Color.FromArgb(37, 99, 235);
+            string lic = L.T("Licenza MIT", "MIT License");
+            var links = new LinkLabel
+            {
+                Text = lic + "  ·  GitHub", AutoSize = true, Location = new Point(84, 112),
+                LinkColor = blue, ActiveLinkColor = blue, LinkBehavior = LinkBehavior.AlwaysUnderline
+            };
+            links.Links.Clear();
+            links.Links.Add(0, lic.Length, AppVersion.RepoUrl + "/blob/main/LICENSE");
+            links.Links.Add(lic.Length + 5, 6, AppVersion.RepoUrl);
+            links.LinkClicked += (s, e) =>
+            {
+                try { Process.Start(new ProcessStartInfo((string)e.Link.LinkData) { UseShellExecute = true }); } catch { }
+            };
             var ok = new Button { Text = "OK", Size = new Size(90, 30) };
             ok.Click += delegate { Close(); };
             AcceptButton = CancelButton = ok;
@@ -253,13 +239,12 @@ namespace AppSys
             menu.Items.Add(new ToolStripMenuItem("AppSys " + AppVersion.Text) { Enabled = false });
             // compare solo quando c'è una versione più recente
             miUpdateAvail = new ToolStripMenuItem("", null, delegate { OfferUpdate(); }) { Visible = false };
-            // grassetto a partire dal font del menu: la voce, non ancora nel menu, avrebbe quello predefinito (9 pt)
-            miUpdateAvail.Font = new Font(menu.Font, FontStyle.Bold);
             relabel.Add(delegate { if (updVersion != null) miUpdateAvail.Text = L.F("Aggiorna ad AppSys {0}...", "Update to AppSys {0}...", updVersion); });
             menu.Items.Add(miUpdateAvail);
             menu.Items.Add(new ToolStripSeparator());
             var miAnalysis = Mi("Analisi approfondita...", "In-depth analysis...", delegate { AnalysisForm.ShowOnce(appIcon); });
-            miAnalysis.Font = new Font(menu.Font, FontStyle.Bold);
+            // niente grassetto, come in AppIP: il menu calcola la larghezza con il carattere normale e su schermi
+            // ridimensionati (125%) una voce in grassetto può risultare tagliata
             menu.Items.Add(miAnalysis);
             menu.Items.Add(Mi("Spazio su disco...", "Disk space...", delegate { DiskSpaceForm.ShowOnce(appIcon, null); }));
             menu.Items.Add(Mi("Pulizia disco...", "Disk cleanup...", delegate { CleanupForm.ShowOnce(appIcon); }));

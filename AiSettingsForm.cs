@@ -36,7 +36,7 @@ namespace AppSys
         readonly ComboBox cbLocalModel, cbClaudeModel, cbEffort, cbCcModel, cbUrl, cbOaModel;
         readonly Button btnList, btnTest, btnDownload;
         readonly ProgressBar bar;
-        readonly LinkText lnkRemove;
+        readonly LinkLabel lnkRemove;
         readonly Label lblTest, lblLocal;
         readonly List<Control> localCtl = new List<Control>(), claudeCtl = new List<Control>(), ccCtl = new List<Control>(), oaCtl = new List<Control>();
         readonly AiDownloader downloader = new AiDownloader();
@@ -90,8 +90,9 @@ namespace AppSys
             localCtl.Add(btnDownload);
             localCtl.Add(bar);
             // sulla stessa riga del pulsante, dove compare la barra durante lo scaricamento
-            // LinkText invece di LinkLabel: al passaggio del mouse LinkLabel ridisegna il testo solo in parte (vedi AppSys.cs)
-            lnkRemove = new LinkText("", delegate { RemoveFiles(); }) { Location = new Point(L1 + 118, y + 4) };
+            // AlwaysUnderline: con HoverUnderline il carattere cambia al passaggio del mouse e il testo si ridisegna male
+            lnkRemove = new LinkLabel { Text = "", AutoSize = false, Size = new Size(W - 118, 24), Location = new Point(L1 + 118, y + 4), LinkBehavior = LinkBehavior.AlwaysUnderline };
+            lnkRemove.LinkClicked += delegate { RemoveFiles(); };
             localCtl.Add(lnkRemove);
             y += 36;
             downloader.Progress += st => Post(delegate { OnProgress(st); });
@@ -104,8 +105,8 @@ namespace AppSys
             txtClaudeKey = new TextBox { Location = new Point(L1, y), Width = W, UseSystemPasswordChar = true };
             Row(claudeCtl, L.T("Chiave API:", "API key:"), txtClaudeKey, L0 + 18, y);
             y += 26;
-            var lnkKey = new LinkText(L.T("Crea una chiave su console.anthropic.com", "Create a key at console.anthropic.com"),
-                delegate { try { System.Diagnostics.Process.Start("https://console.anthropic.com/settings/keys"); } catch { } }) { Location = new Point(L1, y) };
+            var lnkKey = new LinkLabel { Text = L.T("Crea una chiave su console.anthropic.com", "Create a key at console.anthropic.com"), AutoSize = false, Size = new Size(W, 24), Location = new Point(L1, y), LinkBehavior = LinkBehavior.AlwaysUnderline };
+            lnkKey.LinkClicked += delegate { try { System.Diagnostics.Process.Start("https://console.anthropic.com/settings/keys"); } catch { } };
             claudeCtl.Add(lnkKey);
             y += 26;
             cbClaudeModel = new ComboBox { Location = new Point(L1, y), Width = W, DropDownStyle = ComboBoxStyle.DropDown };

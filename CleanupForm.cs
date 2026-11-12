@@ -336,7 +336,6 @@ namespace AppSys
             links.Controls.Add(Tool(L.T("Spazio su disco...", "Disk space..."), delegate { DiskSpaceForm.ShowOnce(this.icon, null); }));
 
             btnClean = new Button { Text = L.T("Pulisci", "Clean up"), Location = new Point(338, 470), Size = new Size(100, 30), Enabled = false };
-            btnClean.Font = new Font(Font, FontStyle.Bold);
             btnClose = new Button { Text = L.T("Chiudi", "Close"), Location = new Point(444, 470), Size = new Size(100, 30) };
             btnClean.Click += delegate { CleanSelected(); };
             btnClose.Click += delegate { Close(); };
