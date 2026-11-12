@@ -223,6 +223,7 @@ namespace CorbolSys
         bool balloonIsUpdate;
         readonly ToolStripMenuItem miUpdateAvail;
         readonly WinTimer updTimer;
+        TaskbarButton taskbarBtn;   // accende l'icona fissata sulla barra delle applicazioni mentre l'app è aperta
 
         public WidgetForm(string startCmd)
         {
@@ -390,6 +391,11 @@ namespace CorbolSys
                 ListenCommand("topmost", delegate { if (!Visible) ToggleWidget(); SetTopMost(!topMostMode); SaveSettings(); });
                 ListenCommand("exit", Close);
                 Load += delegate { UpdateJumpList(); };
+                Load += delegate
+                {
+                    taskbarBtn = new TaskbarButton(this, "CorbolSys", appIcon, BringToFront, Close);
+                    taskbarBtn.Show();
+                };
             }
             if (startCmd == "analysis") Shown += delegate { AnalysisForm.ShowOnce(appIcon); };
             if (startCmd == "topmost") Load += delegate { SetTopMost(true); SaveSettings(); };
@@ -1260,6 +1266,7 @@ namespace CorbolSys
             SaveSettings();
             SystemEvents.UserPreferenceChanged -= OnUserPrefChanged;
             if (SnapshotPath == null) ClearJumpList();
+            if (taskbarBtn != null) taskbarBtn.CloseFromApp();
             SysMonitor.Instance.Stop();
             LocalAi.Instance.Stop();
             tray.Visible = false;
