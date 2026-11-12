@@ -14,7 +14,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Win32;
 
-namespace AppSys
+namespace CorbolSys
 {
     static class SysTools
     {
@@ -54,7 +54,7 @@ namespace AppSys
                                  { "hours", Prop("integer", "How many hours back, 1-720") },
                                  { "provider", Prop("string", "Optional provider/source name, e.g. disk, Microsoft-Windows-Kernel-Power; empty for all") }
                              }, "log", "level", "hours", "provider") },
-                new AiTool { Name = "resource_history", Description = "Resource usage recorded by AppSys on this PC (CPU, RAM, GPU, disk activity, temperature, network, heaviest process) summarized in time buckets. Up to 24 hours from memory, up to 168 hours if the history file is on.",
+                new AiTool { Name = "resource_history", Description = "Resource usage recorded by CorbolSys on this PC (CPU, RAM, GPU, disk activity, temperature, network, heaviest process) summarized in time buckets. Up to 24 hours from memory, up to 168 hours if the history file is on.",
                              Schema = Schema(new Dictionary<string, object> { { "hours", Prop("integer", "How many hours back, 1-168") }, { "bucket_minutes", Prop("integer", "Minutes per row: 5, 15, 30 or 60") } }, "hours", "bucket_minutes") },
                 new AiTool { Name = "largest_folders", Description = "Sizes of the subfolders of a local folder (largest first), to find what fills a disk. Takes up to 20 seconds; very large folders may be partially counted.",
                              Schema = Schema(new Dictionary<string, object> { { "path", Prop("string", "Absolute local folder, e.g. C:\\ or C:\\Users") } }, "path") },
@@ -111,7 +111,7 @@ namespace AppSys
                     if (h * 60 / b > 120) b = h * 60 / 120 >= 30 ? 60 : 30;   // al massimo ~120 righe
                     string t = Analysis.TrendText(h, b);
                     return t.Length > 0 ? "Resource history, " + b + "-minute buckets, values are averages:\n" + t
-                                        : "No history recorded yet (AppSys records one summary per minute while running).";
+                                        : "No history recorded yet (CorbolSys records one summary per minute while running).";
                 }
                 case "largest_folders": return LargestFolders(Arg(c, "path"), cancel);
                 case "stopped_services": return StoppedServices();

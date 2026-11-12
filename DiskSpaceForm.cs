@@ -13,7 +13,7 @@ using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace AppSys
+namespace CorbolSys
 {
     class DiskSpaceForm : Form
     {
@@ -68,7 +68,7 @@ namespace AppSys
 
         DiskSpaceForm(Icon icon, string drive)
         {
-            Text = L.T("Spazio su disco - AppSys", "Disk space - AppSys");
+            Text = L.T("Spazio su disco - CorbolSys", "Disk space - CorbolSys");
             StartPosition = FormStartPosition.CenterScreen;
             AutoScaleDimensions = new SizeF(96f, 96f);
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -291,7 +291,7 @@ namespace AppSys
                     catch (OperationCanceledException) { return; }
                 }
                 dirty = true;
-            }) { IsBackground = true, Name = "AppSys disk space", Priority = ThreadPriority.BelowNormal };
+            }) { IsBackground = true, Name = "CorbolSys disk space", Priority = ThreadPriority.BelowNormal };
             t.Start();
         }
 

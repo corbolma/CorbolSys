@@ -1,4 +1,4 @@
-// AppSys - widget desktop + icona nella tray: CPU, RAM, GPU, dischi, rete, temperatura, batteria e processi
+// CorbolSys - widget desktop + icona nella tray: CPU, RAM, GPU, dischi, rete, temperatura, batteria e processi
 // più pesanti, con avvisi quando qualcosa resta al limite e un'analisi approfondita con assistente AI.
 // Compatibile con il compilatore csc di .NET Framework 4.x (C# 5).
 using System;
@@ -18,9 +18,9 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 using WinTimer = System.Windows.Forms.Timer;
 
-[assembly: System.Reflection.AssemblyTitle("AppSys - monitor del sistema")]
+[assembly: System.Reflection.AssemblyTitle("CorbolSys - monitor del sistema")]
 
-namespace AppSys
+namespace CorbolSys
 {
     static class Program
     {
@@ -28,7 +28,7 @@ namespace AppSys
         [DllImport("shell32.dll", CharSet = CharSet.Unicode)] static extern int SetCurrentProcessExplicitAppUserModelID(string id);
 
         // Deve coincidere con AppUserModelId in Setup.cs (collegamento del menu Start)
-        public const string AppUserModelId = "AppSys.Widget";
+        public const string AppUserModelId = "AppSys.Widget"; // come prima del cambio di nome: le icone già fissate alla barra restano della stessa app
 
         //   (nessuno) / /front -> mostra il widget     /analysis -> apre l'analisi     /exit -> chiude l'app
         //   /report <file>     -> analisi completa salvata su file, senza interfaccia (per l'IT o per gli script)
@@ -63,11 +63,12 @@ namespace AppSys
                 Application.Run(new WidgetForm("snapshot"));
                 return;
             }
+            OldApp.MoveLeftovers(); // dati rimasti nelle cartelle col nome vecchio (AppSys)
             try { SetCurrentProcessExplicitAppUserModelID(AppUserModelId); } catch { }
             string cmd = args.Length > 0 ? args[0].TrimStart('/', '-').ToLowerInvariant() : "front";
             if (cmd != "exit" && cmd != "analysis" && cmd != "topmost") cmd = "front";
             bool createdNew;
-            using (var mutex = new Mutex(true, "AppSys_SingleInstance", out createdNew))
+            using (var mutex = new Mutex(true, "CorbolSys_SingleInstance", out createdNew))
             {
                 if (!createdNew)
                 {
@@ -91,7 +92,7 @@ namespace AppSys
     // Dimensione del testo di menu e finestre (il predefinito di Windows è 9 pt)
     static class UiFont
     {
-        public const float Pt = 11f;   // come AppIP
+        public const float Pt = 11f;   // come CorbolIp
         public static readonly float Scale = Pt / 9f;   // le coordinate delle finestre sono pensate per 9 pt
     }
 
@@ -108,7 +109,7 @@ namespace AppSys
 
         AboutForm(Icon icon)
         {
-            Text = L.T("Informazioni su AppSys", "About AppSys");
+            Text = L.T("Informazioni su CorbolSys", "About CorbolSys");
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = MinimizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -121,7 +122,7 @@ namespace AppSys
             var pic = new PictureBox { Location = new Point(20, 20), Size = new Size(48, 48), SizeMode = PictureBoxSizeMode.Zoom };
             try
             {
-                // Le immagini in appsys.ico sono PNG (Icon.ToBitmap non le decodifica): si legge quella da 64 px, come in AppIP
+                // Le immagini in corbolsys.ico sono PNG (Icon.ToBitmap non le decodifica): si legge quella da 64 px, come in CorbolIp
                 using (var st = WidgetForm.IconStream())
                 using (var ms = new MemoryStream())
                 {
@@ -139,14 +140,14 @@ namespace AppSys
                 }
             }
             catch { }
-            var title = new Label { Text = "AppSys " + AppVersion.Text, AutoSize = true, Location = new Point(82, 18), Font = new Font("Segoe UI Semibold", 14f * UiFont.Scale) };
+            var title = new Label { Text = "CorbolSys " + AppVersion.Text, AutoSize = true, Location = new Point(82, 18), Font = new Font("Segoe UI Semibold", 14f * UiFont.Scale) };
             var desc = new Label
             {
                 Text = L.T("Monitor del sistema sul desktop, con analisi approfondita e assistente AI", "System monitor on your desktop, with in-depth analysis and AI assistant"),
                 AutoSize = true, MaximumSize = new Size(260, 0), Location = new Point(84, 50), ForeColor = Color.DimGray
             };
             var author = new Label { Text = "© 2026 " + AppVersion.Author, AutoSize = true, Location = new Point(84, 90) };
-            // "Licenza MIT · GitHub" come in AppIP: un solo LinkLabel con due collegamenti. Sottolineatura sempre presente
+            // "Licenza MIT · GitHub" come in CorbolIp: un solo LinkLabel con due collegamenti. Sottolineatura sempre presente
             // (AlwaysUnderline): con HoverUnderline il carattere cambia al passaggio del mouse e il testo si ridisegna male
             var blue = Color.FromArgb(37, 99, 235);
             string lic = L.T("Licenza MIT", "MIT License");
@@ -189,8 +190,8 @@ namespace AppSys
 
         const int GWL_HWNDPARENT = -8, WS_EX_TOOLWINDOW = 0x80, WM_NCLBUTTONDOWN = 0xA1, HTCAPTION = 2;
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        const string AppName = "AppSys";
-        public const string EventPrefix = "AppSys_Cmd_";
+        const string AppName = "CorbolSys";
+        public const string EventPrefix = "CorbolSys_Cmd_";
         public static string SnapshotPath;          // /snapshot: salva un'immagine ed esce (niente tray, niente impostazioni salvate)
         public static bool SnapshotAnalysis;
         readonly List<EventWaitHandle> cmdEvents = new List<EventWaitHandle>();
@@ -225,7 +226,7 @@ namespace AppSys
 
         public WidgetForm(string startCmd)
         {
-            settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AppSys", "settings.txt");
+            settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CorbolSys", "settings.txt");
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
             StartPosition = FormStartPosition.Manual;
@@ -236,21 +237,21 @@ namespace AppSys
 
             // ----- menu -----
             var menu = new ContextMenuStrip { Font = new Font("Segoe UI", UiFont.Pt) };
-            menu.Items.Add(new ToolStripMenuItem("AppSys " + AppVersion.Text) { Enabled = false });
+            menu.Items.Add(new ToolStripMenuItem("CorbolSys " + AppVersion.Text) { Enabled = false });
             // compare solo quando c'è una versione più recente
             miUpdateAvail = new ToolStripMenuItem("", null, delegate { OfferUpdate(); }) { Visible = false };
-            relabel.Add(delegate { if (updVersion != null) miUpdateAvail.Text = L.F("Aggiorna ad AppSys {0}...", "Update to AppSys {0}...", updVersion); });
+            relabel.Add(delegate { if (updVersion != null) miUpdateAvail.Text = L.F("Aggiorna a CorbolSys {0}...", "Update to CorbolSys {0}...", updVersion); });
             menu.Items.Add(miUpdateAvail);
             menu.Items.Add(new ToolStripSeparator());
             var miAnalysis = Mi("Analisi approfondita...", "In-depth analysis...", delegate { AnalysisForm.ShowOnce(appIcon); });
-            // niente grassetto, come in AppIP: il menu calcola la larghezza con il carattere normale e su schermi
+            // niente grassetto, come in CorbolIp: il menu calcola la larghezza con il carattere normale e su schermi
             // ridimensionati (125%) una voce in grassetto può risultare tagliata
             menu.Items.Add(miAnalysis);
             menu.Items.Add(Mi("Spazio su disco...", "Disk space...", delegate { DiskSpaceForm.ShowOnce(appIcon, null); }));
             menu.Items.Add(Mi("Pulizia disco...", "Disk cleanup...", delegate { CleanupForm.ShowOnce(appIcon); }));
             menu.Items.Add(Mi("Assistente AI...", "AI assistant...", delegate { AiSettingsForm.ShowOnce(appIcon, null); }));
             menu.Items.Add(Mi("Gestione attività", "Task Manager", delegate { Launch("taskmgr.exe", ""); }));
-            menu.Items.Add(Mi("Copia stato attuale", "Copy current status", delegate { try { Clipboard.SetText(StatusText()); tray.ShowBalloonTip(1500, "AppSys", L.T("Stato copiato negli appunti", "Status copied to clipboard"), ToolTipIcon.Info); } catch { } }));
+            menu.Items.Add(Mi("Copia stato attuale", "Copy current status", delegate { try { Clipboard.SetText(StatusText()); tray.ShowBalloonTip(1500, "CorbolSys", L.T("Stato copiato negli appunti", "Status copied to clipboard"), ToolTipIcon.Info); } catch { } }));
             menu.Items.Add(new ToolStripSeparator());
             miShow = Mi("Mostra widget", "Show widget", delegate { ToggleWidget(); });
             miShow.Checked = true;
@@ -271,7 +272,7 @@ namespace AppSys
             miMon.DropDownItems.Add(Mi("Apri la cronologia", "Open history", delegate
             {
                 if (File.Exists(SysMonitor.HistoryPath)) Launch("notepad.exe", "\"" + SysMonitor.HistoryPath + "\"");
-                else MessageBox.Show(L.T("Nessun dato registrato finora.", "No data recorded yet."), "AppSys", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                else MessageBox.Show(L.T("Nessun dato registrato finora.", "No data recorded yet."), "CorbolSys", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }));
             menu.Items.Add(miMon);
 
@@ -331,7 +332,7 @@ namespace AppSys
             });
             menu.Items.Add(miUpd);
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(Mi("Informazioni su AppSys", "About AppSys", delegate { AboutForm.ShowOnce(appIcon); }));
+            menu.Items.Add(Mi("Informazioni su CorbolSys", "About CorbolSys", delegate { AboutForm.ShowOnce(appIcon); }));
             menu.Items.Add(Mi("Esci", "Exit", delegate { Close(); }));
             menu.Opening += delegate { foreach (var m in miLang) m.Checked = (string)m.Tag == L.Setting; };
             ContextMenuStrip = menu;
@@ -339,7 +340,7 @@ namespace AppSys
             // ----- tray -----
             appIcon = LoadAppIcon();
             Icon = appIcon;
-            tray = new NotifyIcon { Icon = appIcon, ContextMenuStrip = menu, Visible = true, Text = "AppSys" };
+            tray = new NotifyIcon { Icon = appIcon, ContextMenuStrip = menu, Visible = true, Text = "CorbolSys" };
             tray.DoubleClick += delegate { ToggleWidget(); };
             tray.BalloonTipClicked += delegate
             {
@@ -444,7 +445,7 @@ namespace AppSys
 
         // ---------- Jump List (tasto destro sull'icona fissata nella barra delle applicazioni) ----------
         // Compare sull'icona fissata dal menu Start: il collegamento creato dall'installer ha lo stesso
-        // AppUserModelID dell'app (Program.AppUserModelId). Le voci esistono solo mentre AppSys è aperta.
+        // AppUserModelID dell'app (Program.AppUserModelId). Le voci esistono solo mentre CorbolSys è aperta.
         void UpdateJumpList()
         {
             try
@@ -471,7 +472,7 @@ namespace AppSys
                 });
                 jl.JumpItems.Add(new System.Windows.Shell.JumpTask
                 {
-                    Title = L.T("Esci da AppSys", "Exit AppSys"),
+                    Title = L.T("Esci da CorbolSys", "Exit CorbolSys"),
                     Description = L.T("Chiude l'app se è aperta", "Closes the app if it is running"),
                     ApplicationPath = exe, Arguments = "/exit", IconResourcePath = exe
                 });
@@ -480,7 +481,7 @@ namespace AppSys
             catch { }
         }
 
-        // All'uscita si svuota: le voci servono solo mentre AppSys è aperta
+        // All'uscita si svuota: le voci servono solo mentre CorbolSys è aperta
         static void ClearJumpList()
         {
             try { new System.Windows.Shell.JumpList { ShowFrequentCategory = false, ShowRecentCategory = false }.Apply(); }
@@ -526,7 +527,7 @@ namespace AppSys
             if (theme == "auto") try { BeginInvoke(new Action(ApplyLook)); } catch { }
         }
 
-        // ===================== Finestra / z-order (come AppIP: incollata al desktop) =====================
+        // ===================== Finestra / z-order (come CorbolIp: incollata al desktop) =====================
         protected override CreateParams CreateParams
         {
             get { var cp = base.CreateParams; cp.ExStyle |= WS_EX_TOOLWINDOW; return cp; }
@@ -627,7 +628,7 @@ namespace AppSys
         {
             var s = SysMonitor.Instance.Current;
             string vol = s.Volumes.Count > 0 ? " · " + s.Volumes[0].Name + " " + Fmt.Bytes(s.Volumes[0].Free) : "";
-            string tip = "AppSys · CPU " + Fmt.Pct(s.Cpu) + " · RAM " + Fmt.Pct(s.RamPct) + vol;
+            string tip = "CorbolSys · CPU " + Fmt.Pct(s.Cpu) + " · RAM " + Fmt.Pct(s.RamPct) + vol;
             try { tray.Text = tip.Length > 63 ? tip.Substring(0, 63) : tip; } catch { }
             if (!trayCpu) { if (tray.Icon != appIcon) { tray.Icon = appIcon; DisposeCpuIcon(); } return; }
             var old = cpuIcon;
@@ -668,7 +669,7 @@ namespace AppSys
 
         public static Stream IconStream()
         {
-            return typeof(WidgetForm).Assembly.GetManifestResourceStream("AppSys.appsys.ico");
+            return typeof(WidgetForm).Assembly.GetManifestResourceStream("CorbolSys.corbolsys.ico");
         }
 
         static Icon LoadAppIcon()
@@ -678,7 +679,7 @@ namespace AppSys
         }
 
         // ===================== Disegno =====================
-        const int Pad = 14, RowH = 18, GraphH = 34;   // come AppIP
+        const int Pad = 14, RowH = 18, GraphH = 34;   // come CorbolIp
 
         Palette Pal()
         {
@@ -726,7 +727,7 @@ namespace AppSys
 
         void ResizeToContent()
         {
-            int w = compact ? 270 : 330;   // come AppIP
+            int w = compact ? 270 : 330;   // come CorbolIp
             int h = Render(null);
             if (Width != w || Height != h) Size = new Size(w, h);
         }
@@ -876,7 +877,7 @@ namespace AppSys
                 y += 6;
                 if (g != null)
                 {
-                    DrawT(g, L.T("PROCESSI", "PROCESSES"), fLabel, Pad, y, p.Accent);   // intestazione di sezione blu, come le schede in AppIP
+                    DrawT(g, L.T("PROCESSI", "PROCESSES"), fLabel, Pad, y, p.Accent);   // intestazione di sezione blu, come le schede in CorbolIp
                     DrawRight(g, "CPU      RAM", fSmall, W - Pad, y + 1, p.Label);
                 }
                 y += 17;
@@ -960,7 +961,7 @@ namespace AppSys
                     try { ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12; } catch { }
                     var req = (HttpWebRequest)WebRequest.Create(AppVersion.RepoUrl.Replace("https://github.com/", "https://api.github.com/repos/") + "/releases/latest");
                     req.Timeout = 10000;
-                    req.UserAgent = "AppSys/" + AppVersion.Text;
+                    req.UserAgent = "CorbolSys/" + AppVersion.Text;
                     req.Accept = "application/vnd.github+json";
                     string json;
                     using (var resp = req.GetResponse())
@@ -991,18 +992,18 @@ namespace AppSys
             {
                 bool isNew = updVersion != tag;
                 updVersion = tag; updUrl = url; updSha = sha;
-                miUpdateAvail.Text = L.F("Aggiorna ad AppSys {0}...", "Update to AppSys {0}...", tag);
+                miUpdateAvail.Text = L.F("Aggiorna a CorbolSys {0}...", "Update to CorbolSys {0}...", tag);
                 miUpdateAvail.Visible = true;
                 if (manual) OfferUpdate();
                 else if (isNew)
                 {
-                    tray.ShowBalloonTip(10000, L.F("AppSys {0} disponibile", "AppSys {0} available", tag),
+                    tray.ShowBalloonTip(10000, L.F("CorbolSys {0} disponibile", "CorbolSys {0} available", tag),
                         L.T("Clicca qui per aggiornare.", "Click here to update."), ToolTipIcon.Info);
                     balloonIsUpdate = true;
                 }
             }
             else if (manual)
-                Msg(L.F("Hai già l'ultima versione di AppSys ({0}).", "You already have the latest version of AppSys ({0}).", AppVersion.Text),
+                Msg(L.F("Hai già l'ultima versione di CorbolSys ({0}).", "You already have the latest version of CorbolSys ({0}).", AppVersion.Text),
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
@@ -1011,8 +1012,8 @@ namespace AppSys
             if (updVersion == null) return;
             string page = AppVersion.RepoUrl + "/releases/tag/v" + updVersion;
             if (updUrl == null) { Launch(page, ""); return; }
-            var r = Msg(L.F("È disponibile AppSys {0} (installata: {1}).\n\nScaricare e installare ora? L'installer chiuderà AppSys durante l'aggiornamento; impostazioni e cronologia restano.\n\nNovità: {2}",
-                            "AppSys {0} is available (installed: {1}).\n\nDownload and install it now? The installer will close AppSys during the update; your settings and history are kept.\n\nWhat's new: {2}",
+            var r = Msg(L.F("È disponibile CorbolSys {0} (installata: {1}).\n\nScaricare e installare ora? L'installer chiuderà CorbolSys durante l'aggiornamento; impostazioni e cronologia restano.\n\nNovità: {2}",
+                            "CorbolSys {0} is available (installed: {1}).\n\nDownload and install it now? The installer will close CorbolSys during the update; your settings and history are kept.\n\nWhat's new: {2}",
                             updVersion, AppVersion.Text, page), MessageBoxButtons.YesNo, MessageBoxIcon.Information);
             if (r == DialogResult.Yes) DownloadUpdate(updUrl, updSha, updVersion, page);
         }
@@ -1020,17 +1021,17 @@ namespace AppSys
         void DownloadUpdate(string url, string sha, string ver, string page)
         {
             balloonIsUpdate = false;
-            tray.ShowBalloonTip(3000, "AppSys", L.F("Download di AppSys {0} in corso...", "Downloading AppSys {0}...", ver), ToolTipIcon.Info);
+            tray.ShowBalloonTip(3000, "CorbolSys", L.F("Download di CorbolSys {0} in corso...", "Downloading CorbolSys {0}...", ver), ToolTipIcon.Info);
             ThreadPool.QueueUserWorkItem(delegate
             {
-                string file = Path.Combine(Path.GetTempPath(), "AppSys-Setup-" + ver + ".exe");
+                string file = Path.Combine(Path.GetTempPath(), "CorbolSys-Setup-" + ver + ".exe");
                 string err = null;
                 try
                 {
                     try { ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12; } catch { }
                     using (var wc = new WebClient())
                     {
-                        wc.Headers[HttpRequestHeader.UserAgent] = "AppSys/" + AppVersion.Text;
+                        wc.Headers[HttpRequestHeader.UserAgent] = "CorbolSys/" + AppVersion.Text;
                         wc.DownloadFile(url, file);
                     }
                     if (sha != null)
@@ -1074,7 +1075,7 @@ namespace AppSys
             {
                 owner.Show();
                 owner.Activate();
-                return MessageBox.Show(owner, text, "AppSys", buttons, icon);
+                return MessageBox.Show(owner, text, "CorbolSys", buttons, icon);
             }
         }
 
@@ -1148,7 +1149,7 @@ namespace AppSys
                 }
             }
             catch { }
-            if (!Settings.Values.Keys.Any(k => k.StartsWith("ai.")) && SnapshotPath == null) ImportAppIpAi();
+            if (!Settings.Values.Keys.Any(k => k.StartsWith("ai.")) && SnapshotPath == null) ImportCorbolIpAi();
             miTopMost.Checked = topMostMode;
             TopMost = topMostMode;
             if (!visible)
@@ -1211,22 +1212,24 @@ namespace AppSys
             catch { }
         }
 
-        // Primo avvio: se AppIP ha già l'assistente configurato, se ne riprendono le impostazioni.
-        // Le chiavi API si decifrano con l'entropia di AppIP e si cifrano di nuovo per AppSys (sempre DPAPI, stesso utente).
-        static void ImportAppIpAi()
+        // Primo avvio: se CorbolIp ha già l'assistente configurato, se ne riprendono le impostazioni.
+        // Le chiavi API si decifrano con l'entropia di CorbolIp e si cifrano di nuovo per CorbolSys (sempre DPAPI, stesso utente).
+        static void ImportCorbolIpAi()
         {
             try
             {
-                string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AppIP", "settings.txt");
+                string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CorbolIp", "settings.txt");
+                // CorbolIp non ancora aggiornato: impostazioni col nome vecchio
+                if (!File.Exists(path)) path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AppIP", "settings.txt");
                 if (!File.Exists(path)) return;
-                var appIpEntropy = Encoding.UTF8.GetBytes("AppIP.ai.v1");
+                var corbolIpEntropy = Encoding.UTF8.GetBytes("AppIP.ai.v1");
                 foreach (var ln in File.ReadAllLines(path))
                 {
                     int eq = ln.IndexOf('=');
                     if (eq <= 0 || !ln.StartsWith("ai.")) continue;
                     string k = ln.Substring(0, eq).Trim(), v = ln.Substring(eq + 1).Trim();
                     if (k == "ai.local.crashes") continue;
-                    if (k.EndsWith(".key")) v = Secret.Protect(Secret.Unprotect(v, appIpEntropy));
+                    if (k.EndsWith(".key")) v = Secret.Protect(Secret.Unprotect(v, corbolIpEntropy));
                     Settings.Values[k] = v;
                 }
             }

@@ -8,7 +8,7 @@ using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace AppSys
+namespace CorbolSys
 {
     class AiSettingsForm : Form
     {
@@ -50,7 +50,7 @@ namespace AppSys
         {
             this.changed = changed;
             snapshot = new Dictionary<string, string>(Settings.Values);
-            Text = L.T("Assistente AI - AppSys", "AI assistant - AppSys");
+            Text = L.T("Assistente AI - CorbolSys", "AI assistant - CorbolSys");
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = MinimizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -320,7 +320,7 @@ namespace AppSys
         void RemoveFiles()
         {
             if (downloader.Busy) return;
-            if (MessageBox.Show(this, L.T("Eliminare modello e llama-server scaricati da AppSys? Quelli di AppIP e AppPad restano.", "Delete the model and llama-server downloaded by AppSys? AppIP's and AppPad's files stay."),
+            if (MessageBox.Show(this, L.T("Eliminare modello e llama-server scaricati da CorbolSys? Quelli di CorbolIp e CorbolPad restano.", "Delete the model and llama-server downloaded by CorbolSys? CorbolIp's and CorbolPad's files stay."),
                     Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
             LocalAi.Instance.Stop();
             AiDownloader.RemoveAll();

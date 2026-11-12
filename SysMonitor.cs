@@ -5,7 +5,7 @@
 //   - processi (NtQuerySystemInformation: una sola chiamata per tutti, senza aprire i processi) con CPU,
 //     memoria privata e byte letti/scritti su disco, raggruppati per nome
 // Ogni minuto si salva un riassunto (media e massimi, processo più pesante) nella cronologia: 24 ore in memoria
-// e, se attivo, 7 giorni in %APPDATA%\AppSys\history.csv per l'analisi e le domande all'assistente.
+// e, se attivo, 7 giorni in %APPDATA%\CorbolSys\history.csv per l'analisi e le domande all'assistente.
 // Compatibile con il compilatore csc di .NET Framework 4.x (C# 5).
 using System;
 using System.Collections.Generic;
@@ -20,7 +20,7 @@ using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace AppSys
+namespace CorbolSys
 {
     class VolumeInfo
     {
@@ -122,7 +122,7 @@ namespace AppSys
         public static bool HistoryEnabled = true;          // cronologia su file (impostazione)
         public static string HistoryPath
         {
-            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AppSys", "history.csv"); }
+            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CorbolSys", "history.csv"); }
         }
 
         volatile SysSnapshot current = new SysSnapshot { Time = DateTime.Now };
@@ -146,7 +146,7 @@ namespace AppSys
             if (thread != null) return;
             CpuName = ReadCpuName();
             LoadHistory();
-            thread = new Thread(Loop) { IsBackground = true, Name = "AppSys monitor", Priority = ThreadPriority.BelowNormal };
+            thread = new Thread(Loop) { IsBackground = true, Name = "CorbolSys monitor", Priority = ThreadPriority.BelowNormal };
             thread.Start();
         }
 

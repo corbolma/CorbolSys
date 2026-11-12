@@ -1,16 +1,18 @@
-<h1 align="center">AppSys</h1>
+<h1 align="center">CorbolSys</h1>
+
+<p align="center"><sub>Prima si chiamava <b>AppSys</b> (fino alla versione 1.0.6): chi ha già installato la versione vecchia riceve CorbolSys con l'aggiornamento automatico, con impostazioni e dati.<br>Formerly <b>AppSys</b> (up to version 1.0.6): existing installations get CorbolSys through the automatic update, keeping settings and data.</sub></p>
 
 <p align="center">
   Monitor del sistema per Windows, in stile <i>conky</i>: CPU, RAM, GPU, dischi, rete, temperatura, batteria e processi,
   con avvisi, analisi approfondita del PC e assistente AI.<br>
-  Fratello di <a href="https://github.com/corbolma/AppIP">AppIP</a>: stessa struttura, stesso assistente AI.<br>
+  Fratello di <a href="https://github.com/corbolma/CorbolIp">CorbolIp</a>: stessa struttura, stesso assistente AI.<br>
   <a href="#english">English below</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/corbolma/AppSys/releases/latest"><b>⬇ Scarica l'ultima versione</b></a> ·
-  <a href="https://github.com/corbolma/AppSys/wiki">Wiki</a> ·
-  <a href="https://github.com/corbolma/AppSys/issues">Segnala un problema</a>
+  <a href="https://github.com/corbolma/CorbolSys/releases/latest"><b>⬇ Scarica l'ultima versione</b></a> ·
+  <a href="https://github.com/corbolma/CorbolSys/wiki">Wiki</a> ·
+  <a href="https://github.com/corbolma/CorbolSys/issues">Segnala un problema</a>
 </p>
 
 ---
@@ -47,8 +49,8 @@ Un fumetto quando qualcosa resta al limite: CPU sopra il 90% per 2 minuti, RAM s
 disco quasi pieno, batteria quasi scarica. Indica il processo responsabile; cliccandolo si apre l'analisi.
 
 ### Cronologia
-Ogni minuto AppSys salva un riassunto (medie, picchi, processo più pesante): 24 ore in memoria e, se attiva,
-7 giorni in `%APPDATA%\AppSys\history.csv` (solo sul PC). Serve all'analisi e all'assistente per capire
+Ogni minuto CorbolSys salva un riassunto (medie, picchi, processo più pesante): 24 ore in memoria e, se attiva,
+7 giorni in `%APPDATA%\CorbolSys\history.csv` (solo sul PC). Serve all'analisi e all'assistente per capire
 *quando* il PC è stato lento e *per colpa di chi*.
 
 ### Analisi approfondita
@@ -76,13 +78,13 @@ Il risultato è un **punteggio su 100** con i consigli più importanti. *Copia r
 un testo da mandare all'assistenza.
 
 ### Assistente AI
-Lo stesso di AppIP, facoltativo (*Assistente AI...* nel menu):
-- **Assistente locale** (Qwen3.5 con llama.cpp sul PC): nessuna chiave e i dati non escono. Se AppIP o AppPad hanno
-  già scaricato modello e llama.cpp, AppSys usa quei file
+Lo stesso di CorbolIp, facoltativo (*Assistente AI...* nel menu):
+- **Assistente locale** (Qwen3.5 con llama.cpp sul PC): nessuna chiave e i dati non escono. Se CorbolIp o CorbolPad hanno
+  già scaricato modello e llama.cpp, CorbolSys usa quei file
 - **Claude** con la tua chiave API, **Claude Code** con il tuo abbonamento (solo uso personale), oppure un servizio
   **compatibile OpenAI** (OpenAI, OpenRouter, Ollama, LM Studio)
 
-Al primo avvio AppSys **riprende le impostazioni dell'assistente da AppIP** (le chiavi restano cifrate con DPAPI per il tuo utente).
+Al primo avvio CorbolSys **riprende le impostazioni dell'assistente da CorbolIp** (le chiavi restano cifrate con DPAPI per il tuo utente).
 
 Nell'analisi:
 - **Spiega con l'AI**: cosa significano i risultati e cosa fare, partendo dal più importante
@@ -95,13 +97,13 @@ Nell'analisi:
   diventano segnaposti, e la risposta torna in chiaro solo sul PC
 
 ## Installazione
-1. Scarica `AppSys-Setup-X.Y.Z.exe` dalle [Releases](https://github.com/corbolma/AppSys/releases/latest).
-2. Avvialo. **Non servono permessi di amministratore**: installa solo per l'utente corrente in `%LOCALAPPDATA%\Programs\AppSys`.
+1. Scarica `CorbolSys-Setup-X.Y.Z.exe` dalle [Releases](https://github.com/corbolma/CorbolSys/releases/latest).
+2. Avvialo. **Non servono permessi di amministratore**: installa solo per l'utente corrente in `%LOCALAPPDATA%\Programs\CorbolSys`.
 3. Se compare *"Windows ha protetto il PC"*, clicca **Ulteriori informazioni → Esegui comunque** (l'eseguibile non è firmato digitalmente).
 
-Installazione silenziosa (per l'IT): `AppSys-Setup-X.Y.Z.exe /silent` · Disinstallazione: Impostazioni → App, oppure
-`"%LOCALAPPDATA%\Programs\AppSys\Uninstall.exe" /uninstall /silent` (rimuove anche impostazioni, cronologia e file
-dell'assistente locale scaricati da AppSys; quelli di AppIP e AppPad restano).
+Installazione silenziosa (per l'IT): `CorbolSys-Setup-X.Y.Z.exe /silent` · Disinstallazione: Impostazioni → App, oppure
+`"%LOCALAPPDATA%\Programs\CorbolSys\Uninstall.exe" /uninstall /silent` (rimuove anche impostazioni, cronologia e file
+dell'assistente locale scaricati da CorbolSys; quelli di CorbolIp e CorbolPad restano).
 
 ## Aggiornamenti
 *Aggiornamenti → Controlla ora* confronta la versione con l'ultima release su GitHub e, se ce n'è una nuova, scarica
@@ -109,35 +111,35 @@ l'installer, ne verifica lo SHA-256 e lo avvia. Il controllo automatico (una vol
 
 ## Riga di comando
 ```bat
-AppSys.exe                    :: avvia il widget (o lo porta in primo piano)
-AppSys.exe /analysis          :: apre l'analisi approfondita
-AppSys.exe /topmost           :: attiva/disattiva "Sempre in primo piano"
-AppSys.exe /exit              :: chiude AppSys
-AppSys.exe /report file.txt   :: analisi completa salvata su file, senza interfaccia (per l'IT o gli script)
+CorbolSys.exe                    :: avvia il widget (o lo porta in primo piano)
+CorbolSys.exe /analysis          :: apre l'analisi approfondita
+CorbolSys.exe /topmost           :: attiva/disattiva "Sempre in primo piano"
+CorbolSys.exe /exit              :: chiude CorbolSys
+CorbolSys.exe /report file.txt   :: analisi completa salvata su file, senza interfaccia (per l'IT o gli script)
 ```
 
 ## Compilare dal sorgente
 Non serve installare nulla: si usa il compilatore C# incluso in Windows (.NET Framework 4.x).
 ```bat
-build.bat                      :: crea AppSys.exe (e appsys.ico la prima volta)
-build-installer.bat            :: crea dist\AppSys-Setup-X.Y.Z.exe e stampa il suo SHA-256
+build.bat                      :: crea CorbolSys.exe (e corbolsys.ico la prima volta)
+build-installer.bat            :: crea dist\CorbolSys-Setup-X.Y.Z.exe e stampa il suo SHA-256
 build-installer.bat patch      :: incrementa la versione (1.0.0 -> 1.0.1) e crea l'installer
 ```
 
-**Pubblicare una versione:** crea su GitHub una release con tag `vX.Y.Z`, allega `dist\AppSys-Setup-X.Y.Z.exe` e scrivi
-nelle note la riga `SHA-256: ...` stampata da `build-installer.bat` (la trovi anche in `dist\AppSys-Setup-X.Y.Z.sha256.txt`):
+**Pubblicare una versione:** crea su GitHub una release con tag `vX.Y.Z`, allega `dist\CorbolSys-Setup-X.Y.Z.exe` e scrivi
+nelle note la riga `SHA-256: ...` stampata da `build-installer.bat` (la trovi anche in `dist\CorbolSys-Setup-X.Y.Z.sha256.txt`):
 l'aggiornamento automatico la usa per verificare il file scaricato.
 
 ## Lingue
 Interfaccia in **italiano e inglese**: segue la lingua di Windows e si cambia dal menu *Lingua / Language*. Anche
 l'assistente AI risponde nella lingua scelta. Altre lingue si aggiungono con un semplice file di testo, senza
-programmare: vedi [lang/README.md](lang/README.md) e la pagina [Lingue e traduzioni](https://github.com/corbolma/AppSys/wiki/Lingue-e-traduzioni)
+programmare: vedi [lang/README.md](lang/README.md) e la pagina [Lingue e traduzioni](https://github.com/corbolma/CorbolSys/wiki/Lingue-e-traduzioni)
 della wiki. `lang-check.ps1` rigenera il modello `lang/_template.txt` e controlla le traduzioni.
 
 ## Privacy
-AppSys non raccoglie dati e non fa connessioni di rete per il monitoraggio. Il controllo degli aggiornamenti
+CorbolSys non raccoglie dati e non fa connessioni di rete per il monitoraggio. Il controllo degli aggiornamenti
 (`api.github.com`) parte solo da *Controlla ora* o se attivi quello automatico. Cronologia e impostazioni restano in
-`%APPDATA%\AppSys`. L'assistente locale scarica modello e llama.cpp da `huggingface.co` e `github.com` solo quando premi
+`%APPDATA%\CorbolSys`. L'assistente locale scarica modello e llama.cpp da `huggingface.co` e `github.com` solo quando premi
 *Scarica*. Un assistente remoto, solo se lo scegli e solo quando premi *Spiega* o *Chiedi*, riceve il report dell'analisi
 e i risultati dei controlli che chiede.
 
@@ -145,7 +147,7 @@ e i risultati dei controlli che chiede.
 
 ## English
 
-**AppSys** is a small *conky*-style desktop widget and tray icon for Windows 10/11 that shows CPU, RAM, GPU, disk
+**CorbolSys** is a small *conky*-style desktop widget and tray icon for Windows 10/11 that shows CPU, RAM, GPU, disk
 activity and free space, network speed, temperature, battery and the heaviest processes, with a 60-second graph and the
 CPU load in the tray icon. It warns you when something stays at the limit (CPU, memory, heat, full disk, low battery)
 and records a per-minute summary (24 hours in memory, optionally 7 days on disk) to tell *when* the PC was slow and *why*.
@@ -154,13 +156,13 @@ and records a per-minute summary (24 hours in memory, optionally 7 days on disk)
   disk errors, blue screens and unexpected shutdowns, WHEA hardware errors, crashing programs, temperature, battery
   health, startup programs, Windows Update, antivirus, devices and drivers, temporary files, reliability index), with a
   score out of 100, plain-language advice and a report to copy or save.
-- **AI assistant** (optional, same as AppIP): local model (Qwen3.5 via llama.cpp, data stays on the PC; reuses the files
-  already downloaded by AppIP or AppPad), Claude (API key), Claude Code (your own subscription, personal use) or any
+- **AI assistant** (optional, same as CorbolIp): local model (Qwen3.5 via llama.cpp, data stays on the PC; reuses the files
+  already downloaded by CorbolIp or CorbolPad), Claude (API key), Claude Code (your own subscription, personal use) or any
   OpenAI-compatible service. *Explain with AI* and a chat about your PC; with Claude and OpenAI-compatible services the
   assistant can run up to 8 read-only checks by itself (processes, process details, event log, resource history, largest
   folders, stopped services, recently installed programs, startup programs). Computer name, domain and user name are
   replaced by placeholders by default, and *What is sent* shows the exact text.
-- **Install:** download `AppSys-Setup-X.Y.Z.exe` from [Releases](https://github.com/corbolma/AppSys/releases/latest).
+- **Install:** download `CorbolSys-Setup-X.Y.Z.exe` from [Releases](https://github.com/corbolma/CorbolSys/releases/latest).
   Per-user install, no admin rights required; silent install with `/silent`. **Updates** from GitHub Releases with
   SHA-256 verification (automatic check off by default).
 - **Build:** `build.bat` / `build-installer.bat`, with the C# compiler bundled with Windows (.NET Framework 4.x).
@@ -170,8 +172,8 @@ and records a per-minute summary (24 hours in memory, optionally 7 days on disk)
   when you press *Explain* or *Ask*, and to `api.github.com` when checking for updates.
 
 ## Componenti di terze parti / Third-party components
-AppSys non include componenti di terze parti. L'assistente locale, solo se lo attivi e premi *Scarica* (e se AppIP o
-AppPad non li hanno già scaricati), scarica sul PC:
+CorbolSys non include componenti di terze parti. L'assistente locale, solo se lo attivi e premi *Scarica* (e se CorbolIp o
+CorbolPad non li hanno già scaricati), scarica sul PC:
 
 | Componente | Licenza | Da dove |
 |---|---|---|

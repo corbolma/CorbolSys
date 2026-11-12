@@ -1,4 +1,4 @@
-// Lingua dell'interfaccia, condivisa da AppSys.exe e dall'installer.
+// Lingua dell'interfaccia, condivisa da CorbolSys.exe e dall'installer.
 //
 // Italiano e inglese sono scritti nel codice: L.T("testo italiano", "English text").
 // Le altre lingue sono file lang\<codice>.txt (es. lang\de.txt, lang\pt-BR.txt) incorporati
@@ -12,7 +12,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 
-namespace AppSys
+namespace CorbolSys
 {
     static class L
     {
@@ -22,7 +22,7 @@ namespace AppSys
             public Dictionary<string, string> Texts;
         }
 
-        const string ResPrefix = "AppSys.lang.";
+        const string ResPrefix = "CorbolSys.lang.";
         static List<Language> all;
         static Language current;
 
@@ -113,13 +113,15 @@ namespace AppSys
             current = lang;
         }
 
-        // Legge la scelta salvata dall'app in %APPDATA%\AppSys\settings.txt (usata dall'installer).
+        // Legge la scelta salvata dall'app in %APPDATA%\CorbolSys\settings.txt (usata dall'installer).
         public static void LoadFromSettings()
         {
             string v = "auto";
             try
             {
-                string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AppSys", "settings.txt");
+                string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CorbolSys", "settings.txt");
+                // prima del cambio di nome le impostazioni erano nella cartella col nome vecchio
+                if (!File.Exists(path)) path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), OldApp.Name, "settings.txt");
                 if (File.Exists(path))
                     foreach (var ln in File.ReadAllLines(path))
                         if (ln.StartsWith("lang=")) v = ln.Substring(5).Trim();

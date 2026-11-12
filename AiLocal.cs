@@ -1,11 +1,11 @@
-// Assistente locale (ripreso da AppPad): Qwen3.5 con llama-server (llama.cpp) in un processo separato, sul PC.
+// Assistente locale (ripreso da CorbolPad): Qwen3.5 con llama-server (llama.cpp) in un processo separato, sul PC.
 // Niente chiave API e i dati non escono dal computer.
-//   - Modello e llama-server si scaricano solo quando l'utente lo chiede, in %LOCALAPPDATA%\AppSys\ai;
-//     se AppIP o AppPad li hanno già scaricati (%LOCALAPPDATA%\AppIP\ai, %LOCALAPPDATA%\AppPad\ai) si usano quelli.
+//   - Modello e llama-server si scaricano solo quando l'utente lo chiede, in %LOCALAPPDATA%\CorbolSys\ai;
+//     se CorbolIp o CorbolPad li hanno già scaricati (%LOCALAPPDATA%\CorbolIp\ai, %LOCALAPPDATA%\CorbolPad\ai) si usano quelli.
 //   - Ogni file si controlla con il suo SHA-256; un download interrotto riprende da dove era arrivato.
 //   - llama-server parte alla prima richiesta e si chiude dopo 5 minuti senza richieste (libera 2-4 GB di RAM).
 //   - Ascolta solo su 127.0.0.1, su una porta libera scelta ogni volta, con una chiave casuale.
-//   - Un "job object" di Windows lo chiude anche se AppSys si chiude male.
+//   - Un "job object" di Windows lo chiude anche se CorbolSys si chiude male.
 // Compatibile con il compilatore csc di .NET Framework 4.x (C# 5).
 using System;
 using System.Collections.Generic;
@@ -22,7 +22,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 
-namespace AppSys
+namespace CorbolSys
 {
     class AiModel
     {
@@ -107,7 +107,7 @@ namespace AppSys
 
     class AiDownloader
     {
-        // Versione di llama.cpp provata con AppPad e AppSys, fissata con dimensione e SHA-256 dei pacchetti (presi dalla
+        // Versione di llama.cpp provata con CorbolPad e CorbolSys, fissata con dimensione e SHA-256 dei pacchetti (presi dalla
         // pagina della release su GitHub). Un aggiornamento di llama.cpp non cambia nulla finché non si cambia qui.
         // Per aggiornare: https://github.com/ggml-org/llama.cpp/releases/tag/<tag> → asset "llama-<tag>-bin-win-<cpu|vulkan>-x64.zip".
         public const string LlamaTag = "b12110";
@@ -121,25 +121,28 @@ namespace AppSys
         const long MinFree = 2L << 30;     // spazio da lasciare libero sul disco dopo i download
         const int Retries = 5;             // tentativi per file, ognuno riprende da dove era arrivato
 
-        // Cartella di AppSys (qui si scarica e si cancella) e cartella di AppPad (solo lettura: se AppPad ha già
-        // scaricato modello e llama-server, AppSys li usa senza scaricarli di nuovo e non li cancella mai)
+        // Cartella di CorbolSys (qui si scarica e si cancella) e cartella di CorbolPad (solo lettura: se CorbolPad ha già
+        // scaricato modello e llama-server, CorbolSys li usa senza scaricarli di nuovo e non li cancella mai)
         public static string Root
         {
-            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppSys", "ai"); }
+            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CorbolSys", "ai"); }
         }
-        public static string AppPadRoot
+        static string AiDir(string app)
         {
-            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppPad", "ai"); }
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), app, "ai");
         }
-        public static string AppIpRoot
+        // Le altre app con l'assistente locale, col nome attuale e con quello di prima: finché non vengono
+        // aggiornate i loro file restano nella cartella col nome vecchio
+        static readonly string[][] Others = { new[] { "CorbolIp", "AppIP" }, new[] { "CorbolPad", "AppPad" } };
+        // Prima la cartella di CorbolSys, poi quella col nome vecchio (file ancora in uso durante l'aggiornamento), poi le altre app
+        static string[] Roots
         {
-            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppIP", "ai"); }
+            get { return new[] { Root, AiDir(OldApp.Name) }.Concat(Others.SelectMany(o => o.Select(AiDir))).ToArray(); }
         }
-        static string[] Roots { get { return new[] { Root, AppIpRoot, AppPadRoot }; } }
         public static string ModelsDir { get { return Path.Combine(Root, "models"); } }
         public static string LlamaDir { get { return Path.Combine(Root, "llama"); } }
 
-        static string UserAgent { get { return "AppSys/" + AppVersion.Text; } }
+        static string UserAgent { get { return "CorbolSys/" + AppVersion.Text; } }
 
         // Chiamato dal thread del download: chi aggiorna l'interfaccia deve usare BeginInvoke
         public event Action<AiDownloadStatus> Progress;
@@ -165,16 +168,16 @@ namespace AppSys
             return null;
         }
 
-        // Il modello viene dalla cartella di un'altra app (AppIP o AppPad): nome dell'app, o null
+        // Il modello viene dalla cartella di un'altra app (CorbolIp o CorbolPad): nome dell'app, o null
         public static string FromOtherApp(string path)
         {
             if (path == null) return null;
-            if (path.StartsWith(AppIpRoot, StringComparison.OrdinalIgnoreCase)) return "AppIP";
-            if (path.StartsWith(AppPadRoot, StringComparison.OrdinalIgnoreCase)) return "AppPad";
+            foreach (var o in Others)
+                if (o.Any(app => path.StartsWith(AiDir(app) + "\\", StringComparison.OrdinalIgnoreCase))) return o[0];
             return null;
         }
 
-        // Percorso di llama-server.exe adatto alla variante ("cpu" o "vulkan"), da AppSys o da AppPad, o null.
+        // Percorso di llama-server.exe adatto alla variante ("cpu" o "vulkan"), da CorbolSys o da CorbolPad, o null.
         // Il pacchetto per GPU (Vulkan) contiene anche il motore per processore, quindi va bene pure per "cpu".
         public static string ServerExe(string variant)
         {
@@ -192,7 +195,7 @@ namespace AppSys
 
         public static bool LlamaReady(string variant) { return ServerExe(variant) != null; }
 
-        // Cartelle llama\<tag>-<variante> complete di AppSys e di AppPad, la versione più recente per prima
+        // Cartelle llama\<tag>-<variante> complete di CorbolSys e di CorbolPad, la versione più recente per prima
         static IEnumerable<string> InstalledLlamaDirs()
         {
             var all = new List<string>();
@@ -224,7 +227,7 @@ namespace AppSys
             return p != null ? p.Size : 0;
         }
 
-        // Spazio occupato dai file scaricati da AppSys (quelli di AppPad non contano: sono suoi)
+        // Spazio occupato dai file scaricati da CorbolSys (quelli di CorbolPad non contano: sono suoi)
         public static long UsedBytes()
         {
             try
@@ -237,7 +240,7 @@ namespace AppSys
 
         // ---- Pulizia ----
 
-        // Cancella i file scaricati da AppSys (GB); quelli di AppPad restano. llama-server deve essere già chiuso.
+        // Cancella i file scaricati da CorbolSys (GB); quelli di CorbolPad restano. llama-server deve essere già chiuso.
         public static void RemoveAll()
         {
             try { if (Directory.Exists(Root)) Directory.Delete(Root, true); } catch { }
@@ -273,7 +276,7 @@ namespace AppSys
             thread = new Thread(delegate () { Run(model, variant); });
             thread.IsBackground = true;
             thread.Priority = ThreadPriority.BelowNormal;
-            thread.Name = "AppSys AI download";
+            thread.Name = "CorbolSys AI download";
             thread.Start();
         }
 
@@ -600,7 +603,7 @@ namespace AppSys
                 {
                     // Qwen3.5 "pensa" prima di rispondere: per spiegare una diagnosi non serve e rallenta
                     { "chat_template_kwargs", new Dictionary<string, object> { { "enable_thinking", false } } },
-                    // Temperatura bassa e niente "presence penalty": risposte fedeli ai dati (valori provati in AppPad)
+                    // Temperatura bassa e niente "presence penalty": risposte fedeli ai dati (valori provati in CorbolPad)
                     { "temperature", 0.2 }, { "top_p", 0.8 }, { "top_k", 20 }, { "min_p", 0.0 }, { "presence_penalty", 0.0 }
                 }
             };
@@ -777,8 +780,8 @@ namespace AppSys
             return BitConverter.ToString(b).Replace("-", "").ToLowerInvariant();
         }
 
-        // Job object con "chiudi i processi quando si chiude il job": l'handle lo tiene AppSys, quindi
-        // se AppSys termina (anche in crash) Windows chiude llama-server
+        // Job object con "chiudi i processi quando si chiude il job": l'handle lo tiene CorbolSys, quindi
+        // se CorbolSys termina (anche in crash) Windows chiude llama-server
         [StructLayout(LayoutKind.Sequential)]
         struct JOBOBJECT_BASIC_LIMIT_INFORMATION
         {

@@ -1,7 +1,7 @@
-// Installer di AppSys: un solo exe che contiene AppSys.exe.
-// Installa per l'utente corrente (nessun permesso di amministratore) in %LOCALAPPDATA%\Programs\AppSys.
-//   AppSys-Setup.exe              -> finestra di installazione / aggiornamento
-//   AppSys-Setup.exe /silent      -> installazione silenziosa (avvio con Windows attivo, poi avvia l'app)
+// Installer di CorbolSys: un solo exe che contiene CorbolSys.exe.
+// Installa per l'utente corrente (nessun permesso di amministratore) in %LOCALAPPDATA%\Programs\CorbolSys.
+//   CorbolSys-Setup.exe              -> finestra di installazione / aggiornamento
+//   CorbolSys-Setup.exe /silent      -> installazione silenziosa (avvio con Windows attivo, poi avvia l'app)
 //   Uninstall.exe /uninstall     -> disinstallazione (registrata in Impostazioni > App)
 using System;
 using System.Diagnostics;
@@ -14,9 +14,9 @@ using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-[assembly: AssemblyTitle("Installazione AppSys")]
+[assembly: AssemblyTitle("Installazione CorbolSys")]
 
-namespace AppSys.Setup
+namespace CorbolSys.Setup
 {
     static class Program
     {
@@ -36,7 +36,7 @@ namespace AppSys.Setup
                     // In silenzioso non si torna mai a una versione più vecchia, salvo /force.
                     var inst = Installer.InstalledVersion();
                     if (inst != null && inst > Installer.Current && !has("/force")) return 3;
-                    Installer.Install(Installer.StartupEnabled(), false, true);
+                    Installer.Install(Installer.StartupEnabled(), Installer.DesktopShortcutExists(), true);
                     return 0;
                 }
                 Application.Run(new SetupForm());
@@ -44,7 +44,7 @@ namespace AppSys.Setup
             }
             catch (Exception ex)
             {
-                if (!silent) MessageBox.Show(L.T("Errore", "Error") + ": " + ex.Message, "AppSys", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (!silent) MessageBox.Show(L.T("Errore", "Error") + ": " + ex.Message, "CorbolSys", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 2;
             }
         }
@@ -53,21 +53,21 @@ namespace AppSys.Setup
     static class Installer
     {
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        const string UninstKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\AppSys";
+        const string UninstKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\CorbolSys";
 
         public static readonly string InstallDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "AppSys");
-        public static readonly string ExePath = Path.Combine(InstallDir, "AppSys.exe");
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "CorbolSys");
+        public static readonly string ExePath = Path.Combine(InstallDir, "CorbolSys.exe");
         public static readonly string UninstallerPath = Path.Combine(InstallDir, "Uninstall.exe");
-        static readonly string StartMenuLnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "AppSys.lnk");
-        static readonly string DesktopLnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "AppSys.lnk");
+        static readonly string StartMenuLnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "CorbolSys.lnk");
+        static readonly string DesktopLnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "CorbolSys.lnk");
 
         public static readonly Version Current = Version.Parse(AppVersion.Text);
 
         // Versione realmente installata: letta dall'exe (non solo dal registro), null se non installata.
         public static Version InstalledVersion()
         {
-            if (!File.Exists(ExePath)) return null;
+            if (!File.Exists(ExePath)) return OldApp.InstalledVersion(); // installata col nome vecchio, o null
             try
             {
                 var fv = FileVersionInfo.GetVersionInfo(ExePath);
@@ -87,17 +87,25 @@ namespace AppSys.Setup
 
         public static bool StartupEnabled()
         {
+            if (!File.Exists(ExePath) && OldApp.Installed) return OldApp.StartupEnabled(); // aggiornamento dal nome vecchio
             using (var k = Registry.CurrentUser.OpenSubKey(RunKey))
-                return k == null || InstalledVersion() == null || k.GetValue("AppSys") != null;
+                return k == null || InstalledVersion() == null || k.GetValue("CorbolSys") != null;
         }
 
-        // Chiude AppSys se è aperta (con il comando di uscita dell'app, che salva impostazioni e cronologia).
+        // Collegamento sul desktop già presente (anche col nome vecchio): negli aggiornamenti resta
+        public static bool DesktopShortcutExists()
+        {
+            return File.Exists(DesktopLnk) || (!File.Exists(ExePath) && File.Exists(OldApp.DesktopLnk));
+        }
+
+        // Chiude CorbolSys se è aperta (con il comando di uscita dell'app, che salva impostazioni e cronologia).
         public static void CloseRunning()
         {
+            OldApp.CloseRunning("AppSys_Cmd_exit"); // la versione col nome vecchio
             int session = Process.GetCurrentProcess().SessionId;
-            Func<Process[]> mine = () => Process.GetProcessesByName("AppSys").Where(p => p.SessionId == session).ToArray();
+            Func<Process[]> mine = () => Process.GetProcessesByName("CorbolSys").Where(p => p.SessionId == session).ToArray();
             if (mine().Length == 0) return;
-            try { EventWaitHandle.OpenExisting("AppSys_Cmd_exit").Set(); } catch { }
+            try { EventWaitHandle.OpenExisting("CorbolSys_Cmd_exit").Set(); } catch { }
             var until = DateTime.Now.AddSeconds(5);
             while (mine().Length > 0 && DateTime.Now < until) Thread.Sleep(200);
             foreach (var p in mine())
@@ -107,11 +115,14 @@ namespace AppSys.Setup
         public static void Install(bool startup, bool desktop, bool launch)
         {
             CloseRunning();
+            // Dal nome vecchio: dati nelle cartelle nuove, vecchia installazione tolta (le scelte sono già state lette)
+            OldApp.MoveData();
+            OldApp.RemoveInstall();
             Directory.CreateDirectory(InstallDir);
 
-            using (var src = Assembly.GetExecutingAssembly().GetManifestResourceStream("AppSys.payload"))
+            using (var src = Assembly.GetExecutingAssembly().GetManifestResourceStream("CorbolSys.payload"))
             {
-                if (src == null) throw new InvalidOperationException("pacchetto AppSys.exe mancante nell'installer");
+                if (src == null) throw new InvalidOperationException("pacchetto CorbolSys.exe mancante nell'installer");
                 string tmp = ExePath + ".new";
                 using (var dst = File.Create(tmp)) src.CopyTo(dst);
                 if (File.Exists(ExePath)) File.Delete(ExePath);
@@ -129,13 +140,13 @@ namespace AppSys.Setup
 
             using (var k = Registry.CurrentUser.CreateSubKey(RunKey))
             {
-                if (startup) k.SetValue("AppSys", "\"" + ExePath + "\"");
-                else k.DeleteValue("AppSys", false);
+                if (startup) k.SetValue("CorbolSys", "\"" + ExePath + "\"");
+                else k.DeleteValue("CorbolSys", false);
             }
 
             using (var k = Registry.CurrentUser.CreateSubKey(UninstKey))
             {
-                k.SetValue("DisplayName", "AppSys");
+                k.SetValue("DisplayName", "CorbolSys");
                 k.SetValue("DisplayVersion", AppVersion.Text);
                 k.SetValue("VersionMajor", Current.Major, RegistryValueKind.DWord);
                 k.SetValue("VersionMinor", Current.Minor, RegistryValueKind.DWord);
@@ -150,33 +161,34 @@ namespace AppSys.Setup
                 k.SetValue("NoRepair", 1, RegistryValueKind.DWord);
             }
 
+            RetargetPins();
             if (launch) Process.Start(new ProcessStartInfo(ExePath) { WorkingDirectory = InstallDir });
         }
 
         public static bool Uninstall(bool silent)
         {
-            if (!silent && MessageBox.Show(L.T("Vuoi disinstallare AppSys?", "Do you want to uninstall AppSys?"), L.T("Disinstalla AppSys", "Uninstall AppSys"),
+            if (!silent && MessageBox.Show(L.T("Vuoi disinstallare CorbolSys?", "Do you want to uninstall CorbolSys?"), L.T("Disinstalla CorbolSys", "Uninstall CorbolSys"),
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
                 return false;
 
             CloseRunning();
             foreach (var f in new[] { StartMenuLnk, DesktopLnk })
                 try { if (File.Exists(f)) File.Delete(f); } catch { }
-            try { using (var k = Registry.CurrentUser.OpenSubKey(RunKey, true)) if (k != null) k.DeleteValue("AppSys", false); } catch { }
+            try { using (var k = Registry.CurrentUser.OpenSubKey(RunKey, true)) if (k != null) k.DeleteValue("CorbolSys", false); } catch { }
             try { Registry.CurrentUser.DeleteSubKeyTree(UninstKey, false); } catch { }
-            // impostazioni e cronologia delle risorse (%APPDATA%\AppSys)
+            // impostazioni e cronologia delle risorse (%APPDATA%\CorbolSys)
             try
             {
-                string settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AppSys");
+                string settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CorbolSys");
                 if (Directory.Exists(settings)) Directory.Delete(settings, true);
             }
             catch { }
             try { if (File.Exists(ExePath)) File.Delete(ExePath); } catch { }
 
             // L'uninstaller gira dalla cartella da eliminare: la cancella un cmd dopo la nostra uscita.
-            // Con lei va anche %LOCALAPPDATA%\AppSys (modelli dell'assistente locale, GB): llama-server si chiude
-            // con AppSys, quindi qualche secondo dopo i file non sono più in uso. Quelli di AppIP e AppPad restano.
-            string aiData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppSys");
+            // Con lei va anche %LOCALAPPDATA%\CorbolSys (modelli dell'assistente locale, GB): llama-server si chiude
+            // con CorbolSys, quindi qualche secondo dopo i file non sono più in uso. Quelli di CorbolIp e CorbolPad restano.
+            string aiData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CorbolSys");
             Process.Start(new ProcessStartInfo("cmd.exe",
                 "/c ping -n 3 127.0.0.1 >nul & rmdir /s /q \"" + InstallDir + "\" & rmdir /s /q \"" + aiData + "\"")
             {
@@ -186,12 +198,42 @@ namespace AppSys.Setup
                 WorkingDirectory = Path.GetTempPath()
             });
 
-            if (!silent) MessageBox.Show(L.T("AppSys è stata disinstallata.", "AppSys has been uninstalled."), L.T("Disinstalla AppSys", "Uninstall AppSys"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (!silent) MessageBox.Show(L.T("CorbolSys è stata disinstallata.", "CorbolSys has been uninstalled."), L.T("Disinstalla CorbolSys", "Uninstall CorbolSys"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return true;
         }
 
-        // Deve coincidere con Program.AppUserModelId in AppSys.cs
-        const string AppUserModelId = "AppSys.Widget";
+        // Icone fissate alla barra delle applicazioni che aprono l'exe col nome vecchio: ora aprono quello nuovo
+        // (stesso AppUserModelID, quindi l'icona fissata resta quella della finestra aperta)
+        static void RetargetPins()
+        {
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                @"Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar");
+            if (!Directory.Exists(dir)) return;
+            foreach (var lnk in Directory.GetFiles(dir, "*.lnk"))
+            {
+                IShellLinkW link = null;
+                try
+                {
+                    link = (IShellLinkW)new CShellLink();
+                    var pf = (System.Runtime.InteropServices.ComTypes.IPersistFile)link;
+                    pf.Load(lnk, 2 /* STGM_READWRITE */);
+                    var sb = new System.Text.StringBuilder(1024);
+                    link.GetPath(sb, sb.Capacity, IntPtr.Zero, 0);
+                    if (string.Equals(sb.ToString(), OldApp.ExePath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        link.SetPath(ExePath);
+                        link.SetWorkingDirectory(InstallDir);
+                        link.SetIconLocation(ExePath, 0);
+                        pf.Save(lnk, true);
+                    }
+                }
+                catch { }
+                finally { if (link != null) Marshal.FinalReleaseComObject(link); }
+            }
+        }
+
+        // Deve coincidere con Program.AppUserModelId in CorbolSys.cs
+        const string AppUserModelId = "AppSys.Widget"; // come prima del cambio di nome: le icone già fissate alla barra restano della stessa app
 
         // Crea il collegamento con l'AppUserModelID: l'icona fissata da qui mostra la Jump List dell'app.
         static void CreateShortcut(string lnkPath, string target, string description)
@@ -276,11 +318,17 @@ namespace AppSys.Setup
             string vi = installed != null ? Installer.V(installed) : null, vc = Installer.V(cur);
             string infoText, action;
             bool warn = false;
-            if (installed == null)
+            if (installed != null && !File.Exists(Installer.ExePath))
+            {
+                action = L.T("Aggiorna", "Update");
+                infoText = L.F("{0} {1} diventa CorbolSys {2}: cambia solo il nome, le impostazioni vengono mantenute.",
+                               "{0} {1} becomes CorbolSys {2}: only the name changes, your settings are kept.", OldApp.Name, vi, vc);
+            }
+            else if (installed == null)
             {
                 action = L.T("Installa", "Install");
-                infoText = L.T("AppSys verrà installata solo per il tuo utente, senza permessi di amministratore, nella cartella:",
-                               "AppSys will be installed for your user only, without administrator rights, in the folder:");
+                infoText = L.T("CorbolSys verrà installata solo per il tuo utente, senza permessi di amministratore, nella cartella:",
+                               "CorbolSys will be installed for your user only, without administrator rights, in the folder:");
             }
             else if (installed < cur)
             {
@@ -302,7 +350,7 @@ namespace AppSys.Setup
                            "Warning: a newer version ({0}) is installed. This installer contains the older {1}. Continuing will replace it.", vi, vc);
             }
 
-            Text = action + " AppSys";
+            Text = action + " CorbolSys";
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = MinimizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -318,7 +366,7 @@ namespace AppSys.Setup
             try { using (var ic = new Icon(Icon, 64, 64)) pic.Image = ic.ToBitmap(); } catch { }
             var title = new Label
             {
-                Text = "AppSys " + AppVersion.Text, ForeColor = Color.White, AutoSize = true,
+                Text = "CorbolSys " + AppVersion.Text, ForeColor = Color.White, AutoSize = true,
                 Font = new Font("Segoe UI Semibold", 15f), Location = new Point(88, 16), BackColor = Color.Transparent
             };
             var sub = new Label
@@ -339,9 +387,9 @@ namespace AppSys.Setup
                 Text = Installer.InstallDir, AutoEllipsis = true
             };
 
-            cbStartup = new CheckBox { Text = L.T("Avvia AppSys all'accensione del PC", "Start AppSys when Windows starts"), Location = new Point(22, 164), AutoSize = true, Checked = Installer.StartupEnabled() };
-            cbDesktop = new CheckBox { Text = L.T("Crea un collegamento sul desktop", "Create a desktop shortcut"), Location = new Point(22, 188), AutoSize = true };
-            cbLaunch = new CheckBox { Text = L.T("Avvia AppSys al termine", "Launch AppSys when finished"), Location = new Point(22, 212), AutoSize = true, Checked = true };
+            cbStartup = new CheckBox { Text = L.T("Avvia CorbolSys all'accensione del PC", "Start CorbolSys when Windows starts"), Location = new Point(22, 164), AutoSize = true, Checked = Installer.StartupEnabled() };
+            cbDesktop = new CheckBox { Text = L.T("Crea un collegamento sul desktop", "Create a desktop shortcut"), Location = new Point(22, 188), AutoSize = true, Checked = Installer.DesktopShortcutExists() };
+            cbLaunch = new CheckBox { Text = L.T("Avvia CorbolSys al termine", "Launch CorbolSys when finished"), Location = new Point(22, 212), AutoSize = true, Checked = true };
 
             lblStatus = new Label { Location = new Point(20, 262), Size = new Size(240, 20), ForeColor = Color.DimGray };
             btnInstall = new Button { Text = action, Location = new Point(240, 256), MinimumSize = new Size(120, 30), AutoSize = true };
@@ -360,7 +408,7 @@ namespace AppSys.Setup
             {
                 Text = owner + lic, AutoSize = true, Location = new Point(18, 7), ForeColor = Color.DimGray,
                 LinkColor = Color.FromArgb(37, 99, 235), ActiveLinkColor = Color.FromArgb(37, 99, 235),
-                LinkBehavior = LinkBehavior.HoverUnderline, BackColor = Color.Transparent
+                LinkBehavior = LinkBehavior.AlwaysUnderline, BackColor = Color.Transparent
             };
             credits.LinkArea = new LinkArea(owner.Length, lic.Length);
             credits.LinkClicked += delegate { OpenUrl(AppVersion.RepoUrl + "/blob/main/LICENSE"); };
@@ -368,7 +416,7 @@ namespace AppSys.Setup
             {
                 Text = "GitHub", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 LinkColor = Color.FromArgb(37, 99, 235), ActiveLinkColor = Color.FromArgb(37, 99, 235),
-                LinkBehavior = LinkBehavior.HoverUnderline, BackColor = Color.Transparent
+                LinkBehavior = LinkBehavior.AlwaysUnderline, BackColor = Color.Transparent
             };
             site.LinkClicked += delegate { OpenUrl(AppVersion.RepoUrl); };
             footer.Controls.AddRange(new Control[] { credits, site });
@@ -409,15 +457,15 @@ namespace AppSys.Setup
                 Installer.Install(cbStartup.Checked, cbDesktop.Checked, cbLaunch.Checked);
                 Cursor = Cursors.Default;
                 MessageBox.Show(this,
-                    L.T("AppSys è stata installata.\n\n" +
+                    L.T("CorbolSys è stata installata.\n\n" +
                         "La trovi nel menu Start. Per fissarla alla barra delle applicazioni: " +
-                        "Start → tasto destro su AppSys → Aggiungi alla barra delle applicazioni.\n\n" +
-                        "Per disinstallarla: Impostazioni → App → App installate → AppSys.",
-                        "AppSys has been installed.\n\n" +
+                        "Start → tasto destro su CorbolSys → Aggiungi alla barra delle applicazioni.\n\n" +
+                        "Per disinstallarla: Impostazioni → App → App installate → CorbolSys.",
+                        "CorbolSys has been installed.\n\n" +
                         "You can find it in the Start menu. To pin it to the taskbar: " +
-                        "Start → right-click AppSys → Pin to taskbar.\n\n" +
-                        "To uninstall it: Settings → Apps → Installed apps → AppSys."),
-                    "AppSys", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        "Start → right-click CorbolSys → Pin to taskbar.\n\n" +
+                        "To uninstall it: Settings → Apps → Installed apps → CorbolSys."),
+                    "CorbolSys", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 Close();
             }
             catch (Exception ex)
@@ -425,7 +473,7 @@ namespace AppSys.Setup
                 Cursor = Cursors.Default;
                 lblStatus.Text = "";
                 btnInstall.Enabled = btnCancel.Enabled = true;
-                MessageBox.Show(this, L.T("Installazione non riuscita:", "Installation failed:") + "\n" + ex.Message, "AppSys", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, L.T("Installazione non riuscita:", "Installation failed:") + "\n" + ex.Message, "CorbolSys", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

@@ -16,7 +16,7 @@ using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace AppSys
+namespace CorbolSys
 {
     class CleanTarget
     {
@@ -291,7 +291,7 @@ namespace AppSys
         CleanupForm(Icon icon)
         {
             this.icon = icon;
-            Text = L.T("Pulizia disco - AppSys", "Disk cleanup - AppSys");
+            Text = L.T("Pulizia disco - CorbolSys", "Disk cleanup - CorbolSys");
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -408,7 +408,7 @@ namespace AppSys
                     Ui(delegate { cc.Item.SubItems[1].Text = Fmt.Bytes(cc.Size); UpdateTotal(); });
                 }
                 Ui(delegate { busy = false; measured = true; lblStatus.Text = done ?? ""; UpdateTotal(); });
-            }) { IsBackground = true, Name = "AppSys cleanup measure", Priority = ThreadPriority.BelowNormal };
+            }) { IsBackground = true, Name = "CorbolSys cleanup measure", Priority = ThreadPriority.BelowNormal };
             t.Start();
         }
 
@@ -458,7 +458,7 @@ namespace AppSys
                                 + (total.Skipped > 0 ? L.F(", {0} saltati perché in uso o protetti).", ", {0} skipped because in use or protected).", total.Skipped.ToString("N0")) : ").");
                     MeasureAll(done);
                 });
-            }) { IsBackground = true, Name = "AppSys cleanup" };
+            }) { IsBackground = true, Name = "CorbolSys cleanup" };
             t.Start();
         }
     }

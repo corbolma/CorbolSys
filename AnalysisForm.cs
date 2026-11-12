@@ -15,7 +15,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace AppSys
+namespace CorbolSys
 {
     class AnalysisForm : Form
     {
@@ -59,7 +59,7 @@ namespace AppSys
 
         AnalysisForm(Icon icon)
         {
-            Text = L.T("Analisi approfondita - AppSys", "In-depth analysis - AppSys");
+            Text = L.T("Analisi approfondita - CorbolSys", "In-depth analysis - CorbolSys");
             StartPosition = FormStartPosition.CenterScreen;
             AutoScaleDimensions = new SizeF(96f, 96f);
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -251,8 +251,8 @@ namespace AppSys
             lblTitle.Text = L.T("Analisi in corso: richiede da 10 a 40 secondi...", "Analysis running: it takes 10 to 40 seconds...");
             lblTitle.ForeColor = Color.DimGray;
             lblText.Text = SysMonitor.Instance.Minutes(1).Count == 0
-                ? L.T("AppSys è appena partito: CPU e memoria si basano sull'ultimo minuto. Lasciandolo acceso, l'analisi considera anche l'andamento delle ultime ore.",
-                      "AppSys just started: CPU and memory are based on the last minute. If you leave it running, the analysis also considers the trend of the last hours.")
+                ? L.T("CorbolSys è appena partito: CPU e memoria si basano sull'ultimo minuto. Lasciandolo acceso, l'analisi considera anche l'andamento delle ultime ore.",
+                      "CorbolSys just started: CPU and memory are based on the last minute. If you leave it running, the analysis also considers the trend of the last hours.")
                 : "";
             btnStart.Text = L.T("Interrompi", "Stop");
             btnCopy.Enabled = btnSave.Enabled = false;
@@ -268,7 +268,7 @@ namespace AppSys
             {
                 try { a.Run(); } catch { }
                 Ui(Finished);
-            }) { IsBackground = true, Name = "AppSys analysis" };
+            }) { IsBackground = true, Name = "CorbolSys analysis" };
             worker.Start();
         }
 
@@ -337,7 +337,7 @@ namespace AppSys
             using (var d = new SaveFileDialog
             {
                 Filter = L.T("File di testo", "Text files") + " (*.txt)|*.txt",
-                FileName = "AppSys-" + Environment.MachineName + "-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + ".txt"
+                FileName = "CorbolSys-" + Environment.MachineName + "-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + ".txt"
             })
             {
                 if (d.ShowDialog(this) != DialogResult.OK) return;
@@ -395,9 +395,9 @@ namespace AppSys
 
         static string SystemPrompt(bool tools)
         {
-            return "You are the PC health assistant built into AppSys, a system monitor for Windows. The first message contains the results " +
+            return "You are the PC health assistant built into CorbolSys, a system monitor for Windows. The first message contains the results " +
                    "of an automatic analysis of the user's PC: the checks with their status, details, and the resource usage trend recorded " +
-                   "by AppSys. Help a non-technical user understand the state of their computer and fix problems, most important first, " +
+                   "by CorbolSys. Help a non-technical user understand the state of their computer and fix problems, most important first, " +
                    "naming the specific programs or components involved. " + Common + (tools ? " " + ToolsHelp : "") + " Answer in " + LangName() + ".";
         }
 
@@ -434,7 +434,7 @@ namespace AppSys
             var prov = AiSettings.CurrentProvider();
             if (prov == null)
             {
-                ShowAi(L.T("L'assistente non è configurato: apri Assistente AI... dal menu di AppSys.", "The assistant is not set up: open AI assistant... from the AppSys menu."));
+                ShowAi(L.T("L'assistente non è configurato: apri Assistente AI... dal menu di CorbolSys.", "The assistant is not set up: open AI assistant... from the CorbolSys menu."));
                 return;
             }
             bool tools = UsesTools(prov);
@@ -524,7 +524,7 @@ namespace AppSys
                     ShowAi(transcript.ToString());
                     txtQuestion.Focus();
                 });
-            }) { IsBackground = true, Name = "AppSys AI" };
+            }) { IsBackground = true, Name = "CorbolSys AI" };
             t.Start();
         }
 
@@ -553,7 +553,7 @@ namespace AppSys
             if (text == null)
             {
                 var prov = AiSettings.CurrentProvider();
-                if (prov == null) { ShowAi(L.T("L'assistente non è configurato: apri Assistente AI... dal menu di AppSys.", "The assistant is not set up: open AI assistant... from the AppSys menu.")); return; }
+                if (prov == null) { ShowAi(L.T("L'assistente non è configurato: apri Assistente AI... dal menu di CorbolSys.", "The assistant is not set up: open AI assistant... from the CorbolSys menu.")); return; }
                 if (an == null || worker != null) return;
                 var a = AiSettings.Anonymize ? BuildAnon() : null;
                 string data = an.ReportText(prov == LocalAi.Instance);
@@ -565,7 +565,7 @@ namespace AppSys
             }
             using (var f = new Form
             {
-                Text = L.T("Cosa viene inviato - AppSys", "What is sent - AppSys"), StartPosition = FormStartPosition.CenterParent,
+                Text = L.T("Cosa viene inviato - CorbolSys", "What is sent - CorbolSys"), StartPosition = FormStartPosition.CenterParent,
                 Font = Font, Size = new Size((int)(760 * UiFont.Scale * ScreenDpi() / 96f), (int)(600 * UiFont.Scale * ScreenDpi() / 96f)), MinimizeBox = false, ShowInTaskbar = false, Icon = Icon
             })
             {

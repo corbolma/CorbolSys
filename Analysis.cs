@@ -15,7 +15,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32;
 
-namespace AppSys
+namespace CorbolSys
 {
     enum CheckState { Wait, Running, Ok, Info, Warn, Error }
 
@@ -80,7 +80,7 @@ namespace AppSys
 
         public void Run()
         {
-            // Appena avviata (per esempio con /analysis o dalla Jump List) AppSys non ha ancora il primo campione:
+            // Appena avviata (per esempio con /analysis o dalla Jump List) CorbolSys non ha ancora il primo campione:
             // senza aspettarlo memoria, dischi e batteria risulterebbero vuoti. Di solito arriva in 1-2 secondi.
             var wait = System.Diagnostics.Stopwatch.StartNew();
             while (SysMonitor.Instance.Current.RamTotal == 0 && wait.ElapsedMilliseconds < 20000 && !Cancelled()) System.Threading.Thread.Sleep(200);
@@ -282,8 +282,8 @@ namespace AppSys
                 var st = health == 0 ? CheckState.Ok : health == 1 ? CheckState.Warn : health == 2 ? CheckState.Error : CheckState.Info;
                 if (st > worst) worst = st;
             }
-            if (needAdmin) c.Extra.Add(L.T("Usura, temperatura e ore di accensione dei dischi si leggono solo avviando AppSys come amministratore.",
-                                            "Disk wear, temperature and power-on hours can only be read when AppSys runs as administrator."));
+            if (needAdmin) c.Extra.Add(L.T("Usura, temperatura e ore di accensione dei dischi si leggono solo avviando CorbolSys come amministratore.",
+                                            "Disk wear, temperature and power-on hours can only be read when CorbolSys runs as administrator."));
             Set(c, worst, string.Join(" · ", parts), worst >= CheckState.Warn
                 ? L.T("Un disco segnala problemi: fai subito un backup dei dati importanti e valuta la sostituzione.", "A disk reports problems: back up important data now and consider replacing it.") : null);
         }
@@ -614,7 +614,7 @@ namespace AppSys
         public string ReportText(bool compact = false)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(L.F("Analisi del PC (AppSys {0}) - {1}", "PC analysis (AppSys {0}) - {1}", AppVersion.Text, Time.ToString("yyyy-MM-dd HH:mm")));
+            sb.AppendLine(L.F("Analisi del PC (CorbolSys {0}) - {1}", "PC analysis (CorbolSys {0}) - {1}", AppVersion.Text, Time.ToString("yyyy-MM-dd HH:mm")));
             sb.AppendLine(L.F("PC: {0}", "PC: {0}", Host + (Domain.Length > 0 ? "." + Domain : "")));
             sb.AppendLine(ConclusionTitle);
             if (ConclusionText.Length > 0) sb.AppendLine(ConclusionText);
