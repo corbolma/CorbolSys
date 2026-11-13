@@ -3,8 +3,8 @@ using System.Reflection;
 
 [assembly: AssemblyProduct("CorbolSys")]
 [assembly: AssemblyCopyright(CorbolSys.AppVersion.Copyright)]
-[assembly: AssemblyVersion("1.1.2.0")]
-[assembly: AssemblyFileVersion("1.1.2.0")]
+[assembly: AssemblyVersion("1.1.3.0")]
+[assembly: AssemblyFileVersion("1.1.3.0")]
 
 namespace CorbolSys
 {
@@ -13,6 +13,6 @@ namespace CorbolSys
         public const string Author = "Mauro Corboli";
         public const string Copyright = "Copyright © 2026 " + Author + " - MIT License";
         public const string RepoUrl = "https://github.com/corbolma/CorbolSys";
-        public const string Text = "1.1.2";
+        public const string Text = "1.1.3";
     }
 }
