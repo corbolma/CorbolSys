@@ -353,8 +353,17 @@ namespace CorbolSys
         void ShowAi(string text, bool hint = false)
         {
             if (txtAi == null) return;
-            txtAi.ForeColor = hint ? Color.DimGray : SystemColors.WindowText;
-            txtAi.Text = Crlf(text);
+            var color = hint ? Color.DimGray : SystemColors.WindowText;
+            if (txtAi.ForeColor != color) txtAi.ForeColor = color;
+            string s = Crlf(text), cur = txtAi.Text;
+            if (s == cur) return;
+            // durante lo streaming il testo cresce: si aggiunge solo la parte nuova, senza ridisegnare tutto (niente sfarfallio)
+            if (cur.Length > 0 && s.Length > cur.Length && s.StartsWith(cur, StringComparison.Ordinal))
+            {
+                txtAi.AppendText(s.Substring(cur.Length));
+                return;
+            }
+            txtAi.Text = s;
             txtAi.SelectionStart = txtAi.TextLength;
             txtAi.ScrollToCaret();
         }
@@ -468,12 +477,18 @@ namespace CorbolSys
 
             var acc = new StringBuilder();
             var a = anon;
+            int pending = 0;   // al massimo un aggiornamento in coda: i pezzi arrivati nel frattempo si mostrano insieme
             Action refresh = delegate
             {
-                string shown;
-                lock (acc) shown = acc.ToString();
-                if (a != null) shown = a.Restore(shown);
-                Ui(delegate { if (aiCts == cts) ShowAi(head + shown); });
+                if (Interlocked.Exchange(ref pending, 1) == 1) return;
+                Ui(delegate
+                {
+                    Interlocked.Exchange(ref pending, 0);
+                    string shown;
+                    lock (acc) shown = acc.ToString();
+                    if (a != null) shown = a.Restore(shown);
+                    if (aiCts == cts) ShowAi(head + shown);
+                });
             };
             int calls = 0;
             var sentLog = new StringBuilder();
