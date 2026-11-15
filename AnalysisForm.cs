@@ -114,7 +114,7 @@ namespace CorbolSys
             var btnClean = new Button { Text = L.T("Pulizia disco...", "Disk cleanup..."), Size = new Size(140, 30) };
             btnSpace.Click += delegate { DiskSpaceForm.ShowOnce(Icon, null); };
             btnClean.Click += delegate { CleanupForm.ShowOnce(Icon); };
-            bar.Controls.AddRange(new Control[] { btnStart, btnCopy, btnSave, btnSpace, btnClean, btnClose });
+            bar.Controls.AddRange(new Control[] { btnStart, btnCopy, btnSave, btnSpace, btnClean, btnClose, Help.Button(this, Help.Analysis, Point.Empty) });
 
             if (ai)
             {

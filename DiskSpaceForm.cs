@@ -81,7 +81,7 @@ namespace CorbolSys
             btnUp = new Button { Text = "↑ " + L.T("Su", "Up"), Size = new Size(80, 30) };
             btnRefresh = new Button { Text = L.T("Aggiorna", "Refresh"), Size = new Size(100, 30) };
             btnExplorer = new Button { Text = L.T("Apri in Esplora file", "Open in File Explorer"), Size = new Size(170, 30) };
-            top.Controls.AddRange(new Control[] { cbDrive, btnUp, btnRefresh, btnExplorer });
+            top.Controls.AddRange(new Control[] { cbDrive, btnUp, btnRefresh, btnExplorer, Help.Button(this, Help.Space, Point.Empty) });
 
             lblPath = new Label { Dock = DockStyle.Top, Height = 28, Padding = new Padding(14, 4, 10, 0), Font = new Font("Segoe UI Semibold", UiFont.Pt), AutoEllipsis = true };
             lblStatus = new Label { Dock = DockStyle.Bottom, Height = 30, Padding = new Padding(14, 6, 10, 0), ForeColor = Color.DimGray, AutoEllipsis = true };

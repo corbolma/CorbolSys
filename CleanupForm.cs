@@ -341,7 +341,7 @@ namespace CorbolSys
             btnClose.Click += delegate { Close(); };
             CancelButton = btnClose;
 
-            Controls.AddRange(new Control[] { intro, list, lblDesc, lblTotal, lblStatus, links, btnClean, btnClose });
+            Controls.AddRange(new Control[] { intro, list, lblDesc, lblTotal, lblStatus, links, btnClean, btnClose, Help.Button(this, Help.Cleanup, new Point(302, 456)) });
             ClientSize = new Size(560, 500);
             Scale(new SizeF(UiFont.Scale, UiFont.Scale));
             // l'elenco alto quanto le sue voci (dipende da font e schermo): niente spazio vuoto sotto l'ultima

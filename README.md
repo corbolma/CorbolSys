@@ -96,6 +96,10 @@ Nell'analisi:
 - **Cosa viene inviato** mostra il testo esatto. Di default nome del PC, dominio e nome utente (anche nei percorsi)
   diventano segnaposti, e la risposta torna in chiaro solo sul PC
 
+### Guida e presentazione
+- Al primo avvio una **presentazione** in 4 schede (il widget, il menu, l'analisi, lo spazio su disco) spiega le funzioni principali; si riapre da *Benvenuto...* nel menu.
+- *Guida* apre la [wiki](https://github.com/corbolma/CorbolSys/wiki) nella lingua dell'app; in Analisi approfondita, Spazio su disco, Pulizia disco e Assistente AI il pulsante **?** o il tasto F1 aprono la pagina giusta.
+
 ## Installazione
 1. Scarica `CorbolSys-Setup-X.Y.Z.exe` dalle [Releases](https://github.com/corbolma/CorbolSys/releases/latest).
 2. Avvialo. **Non servono permessi di amministratore**: installa solo per l'utente corrente in `%LOCALAPPDATA%\Programs\CorbolSys`.
@@ -162,6 +166,7 @@ and records a per-minute summary (24 hours in memory, optionally 7 days on disk)
   assistant can run up to 8 read-only checks by itself (processes, process details, event log, resource history, largest
   folders, stopped services, recently installed programs, startup programs). Computer name, domain and user name are
   replaced by placeholders by default, and *What is sent* shows the exact text.
+- **Welcome tour and help:** on first start a 4-page tour introduces the main features (reopen it with *Welcome tour...*); *Help* opens the [wiki](https://github.com/corbolma/CorbolSys/wiki), and the **?** button or F1 in each window opens the right page.
 - **Install:** download `CorbolSys-Setup-X.Y.Z.exe` from [Releases](https://github.com/corbolma/CorbolSys/releases/latest).
   Per-user install, no admin rights required; silent install with `/silent`. **Updates** from GitHub Releases with
   SHA-256 verification (automatic check off by default).

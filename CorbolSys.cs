@@ -33,6 +33,7 @@ namespace CorbolSys
         //   (nessuno) / /front -> mostra il widget     /analysis -> apre l'analisi     /exit -> chiude l'app
         //   /report <file>     -> analisi completa salvata su file, senza interfaccia (per l'IT o per gli script)
         //   /snapshot <file> [analysis] -> immagine PNG del widget (o della finestra di analisi), poi esce
+        //   /snapshot <file> welcome <n> -> scheda n (0-3) della presentazione
         [STAThread]
         static void Main(string[] args)
         {
@@ -54,7 +55,8 @@ namespace CorbolSys
                 SysMonitor.HistoryEnabled = false;
                 WidgetForm.SnapshotPath = args[1];
                 WidgetForm.SnapshotAi = args.Length > 2 && args[2].Equals("ai", StringComparison.OrdinalIgnoreCase);
-                if (args.Length > 2 && (args[2].Equals("space", StringComparison.OrdinalIgnoreCase) || args[2].Equals("cleanup", StringComparison.OrdinalIgnoreCase)))
+                if (args.Length > 2 && (args[2].Equals("space", StringComparison.OrdinalIgnoreCase) || args[2].Equals("cleanup", StringComparison.OrdinalIgnoreCase)
+                                        || args[2].Equals("welcome", StringComparison.OrdinalIgnoreCase)))
                 {
                     WidgetForm.SnapshotWindow = args[2].ToLowerInvariant();
                     WidgetForm.SnapshotArg = args.Length > 3 ? args[3] : null;
@@ -333,6 +335,8 @@ namespace CorbolSys
             });
             menu.Items.Add(miUpd);
             menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(Mi("Guida", "Help", delegate { Help.Open(Help.Guide); }));
+            menu.Items.Add(Mi("Benvenuto...", "Welcome tour...", delegate { ShowWelcome(); }));
             menu.Items.Add(Mi("Informazioni su CorbolSys", "About CorbolSys", delegate { AboutForm.ShowOnce(appIcon); }));
             menu.Items.Add(Mi("Esci", "Exit", delegate { Close(); }));
             menu.Opening += delegate { foreach (var m in miLang) m.Checked = (string)m.Tag == L.Setting; };
@@ -396,6 +400,14 @@ namespace CorbolSys
                     taskbarBtn = new TaskbarButton(this, "CorbolSys", appIcon, BringToFront, Close);
                     taskbarBtn.Show();
                 };
+                // Presentazione al primo avvio, un paio di secondi dopo che il widget è comparso
+                if (!welcomeShown)
+                    Load += delegate
+                    {
+                        var wt = new WinTimer { Interval = 2000 };
+                        wt.Tick += delegate { wt.Stop(); wt.Dispose(); ShowWelcome(); };
+                        wt.Start();
+                    };
             }
             if (startCmd == "analysis") Shown += delegate { AnalysisForm.ShowOnce(appIcon); };
             if (startCmd == "topmost") Load += delegate { SetTopMost(true); SaveSettings(); };
@@ -1147,6 +1159,7 @@ namespace CorbolSys
                     trayCpu = b("tray.cpu", true);
                     alerts = b("alerts", true);
                     autoUpdate = b("updates", false);
+                    welcomeShown = d.ContainsKey("welcome");
                     if (SnapshotPath == null) SysMonitor.HistoryEnabled = b("history", true);
                     if (d.TryGetValue("theme", out v) && (v == "auto" || v == "dark" || v == "light")) theme = v;
                     int op;
@@ -1165,7 +1178,15 @@ namespace CorbolSys
             }
         }
 
-        public static string SnapshotWindow, SnapshotArg;   // /snapshot <file> space [cartella] | cleanup
+        bool welcomeShown;   // la presentazione è già comparsa una volta (setting welcome=1)
+
+        void ShowWelcome()
+        {
+            if (!welcomeShown) { welcomeShown = true; SaveSettings(); }
+            WelcomeForm.ShowOnce(appIcon);
+        }
+
+        public static string SnapshotWindow, SnapshotArg;   // /snapshot <file> space [cartella] | cleanup | welcome <n>
         public static bool SnapshotAi;   // /snapshot <file> ai: analisi + "Spiega" (con l'assistente configurato)
         bool aiStarted;
 
@@ -1174,7 +1195,15 @@ namespace CorbolSys
             var t = new WinTimer { Interval = 7000 };
             t.Tick += delegate
             {
-                if (SnapshotWindow == "space")
+                if (SnapshotWindow == "welcome")
+                {
+                    var f = WelcomeForm.Current;
+                    if (f == null) { WelcomeForm.ShowOnce(appIcon); t.Interval = 1000; return; }
+                    int n;
+                    f.GoTo(int.TryParse(SnapshotArg, out n) ? n : 0);
+                    Save(f);
+                }
+                else if (SnapshotWindow == "space")
                 {
                     var f = DiskSpaceForm.Current;
                     if (f == null) { DiskSpaceForm.ShowOnce(appIcon, SnapshotArg); t.Interval = 1000; return; }
@@ -1255,6 +1284,7 @@ namespace CorbolSys
                 w("theme", theme); w("opacity", opacity); w("lang", L.Setting);
                 w("show.gpu", showGpu); w("show.disks", showDisks); w("show.net", showNet); w("show.temp", showTemp); w("show.procs", showProcs);
                 w("tray.cpu", trayCpu); w("alerts", alerts); w("updates", autoUpdate); w("history", SysMonitor.HistoryEnabled);
+                if (welcomeShown) w("welcome", true);
                 foreach (var kv in Settings.Values.OrderBy(k => k.Key)) w(kv.Key, kv.Value);
                 File.WriteAllText(settingsPath, sb.ToString());
             }
