@@ -58,6 +58,7 @@ namespace CorbolSys
             Add("startup", L.T("Avvio automatico", "Startup programs"));
             Add("updates", L.T("Aggiornamenti di Windows", "Windows Update"));
             Add("av", L.T("Antivirus", "Antivirus"));
+            Add("ports", L.T("Porte aperte", "Open ports"));
             Add("devices", L.T("Dispositivi e driver", "Devices and drivers"));
             Add("junk", L.T("File temporanei", "Temporary files"));
             Add("reliability", L.T("Indice di affidabilità", "Reliability index"));
@@ -90,7 +91,7 @@ namespace CorbolSys
                 Step("system", CheckSystem), Step("cpu", CheckCpu), Step("memory", CheckMemory), Step("space", CheckSpace),
                 Step("health", CheckHealth), Step("diskerr", CheckDiskErrors), Step("crash", CheckCrashes), Step("whea", CheckWhea),
                 Step("apps", CheckApps), Step("temp", CheckTemp), Step("battery", CheckBattery), Step("startup", CheckStartup),
-                Step("updates", CheckUpdates), Step("av", CheckAntivirus), Step("devices", CheckDevices), Step("junk", CheckJunk),
+                Step("updates", CheckUpdates), Step("av", CheckAntivirus), Step("ports", CheckPorts), Step("devices", CheckDevices), Step("junk", CheckJunk),
                 Step("reliability", CheckReliability)
             };
             foreach (var st in steps)
@@ -486,6 +487,40 @@ namespace CorbolSys
                                                               "Windows has not updated for over two months: open Settings > Windows Update and install updates."));
             else if (reboot) Set(c, CheckState.Warn, detail, L.T("Riavvia il PC per completare gli aggiornamenti.", "Restart the PC to finish installing updates."));
             else Set(c, days >= 0 ? CheckState.Ok : CheckState.Info, detail);
+        }
+
+        // Porte in ascolto raggiungibili dalla rete (Ports.cs): cosa il PC espone, non una ricerca di virus
+        void CheckPorts(SysCheck c)
+        {
+            var ports = Ports.List();
+            var net = ports.Where(p => p.Reach != PortReach.ThisPc).ToList();
+            var sus = net.Where(p => p.Risk == PortRisk.Suspicious).ToList();
+            var chk = net.Where(p => p.Risk == PortRisk.Check).ToList();
+            foreach (var p in net.Where(p => p.Risk >= PortRisk.Info)) c.Extra.Add(p.Line());
+            int normal = net.Count(p => p.Risk == PortRisk.Normal);
+            if (normal > 0) c.Extra.Add(L.F("Altre {0} porte normali (servizi di Windows e programmi firmati)", "{0} more normal ports (Windows services and signed programs)", normal));
+            c.Extra.Add(L.F("{0} porte raggiungibili solo da questo PC; {1} porte UDP temporanee di programmi che fanno da client, non contate",
+                            "{0} ports reachable only from this PC; {1} temporary UDP ports of client programs, not counted", ports.Count - net.Count, Ports.HiddenUdp));
+            c.Extra.Add(!Ports.FirewallKnown ? L.T("Firewall di Windows: stato non noto", "Windows firewall: state unknown")
+                        : Ports.FirewallOn ? L.T("Firewall di Windows: acceso", "Windows firewall: on") : L.T("Firewall di Windows: spento", "Windows firewall: off"));
+            c.Extra.Add(L.T("Elenco completo: doppio clic su questo controllo, oppure Porte aperte... nel menu.", "Full list: double-click this check, or Open ports... in the menu."));
+
+            var parts = new List<string> { L.F("{0} aperte alla rete", "{0} open to the network", net.Count) };
+            if (sus.Count > 0) parts.Add(L.F("{0} sospette", "{0} suspicious", sus.Count));
+            if (chk.Count > 0) parts.Add(L.F("{0} da guardare", "{0} to check", chk.Count));
+            string detail = string.Join(", ", parts);
+            if (sus.Count > 0)
+                Set(c, CheckState.Error, detail, L.F("Controlla le porte sospette ({0}): se non riconosci il programma che le apre, fai una scansione con l'antivirus.",
+                                                     "Check the suspicious ports ({0}): if you don't recognize the program that opens them, run an antivirus scan.",
+                                                     string.Join(", ", sus.Take(3).Select(p => p.Process + " " + p.Port))));
+            else if (Ports.FirewallKnown && !Ports.FirewallOn)
+                Set(c, CheckState.Warn, detail + ", " + L.T("firewall spento", "firewall off"), L.T("Il firewall di Windows è spento: riaccendilo da Sicurezza di Windows > Firewall e protezione della rete.",
+                                                                                                   "The Windows firewall is off: turn it back on in Windows Security > Firewall & network protection."));
+            else if (chk.Count > 0)
+                Set(c, CheckState.Warn, detail, L.F("Alcuni programmi accettano connessioni dalla rete ({0}): chiudili o limitali se non ti servono.",
+                                                    "Some programs accept connections from the network ({0}): close or restrict them if you don't need them.",
+                                                    string.Join(", ", chk.Take(3).Select(p => p.Process + " " + p.Port))));
+            else Set(c, CheckState.Ok, detail);
         }
 
         void CheckAntivirus(SysCheck c)

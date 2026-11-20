@@ -44,6 +44,14 @@ browser (non password, cronologia o cookie) e il Cestino. Mostra quanto occupa o
 in uso. Per i file di sistema apre la Pulizia disco di Windows. Cancella solo nella cartella temporanea e in un elenco
 chiuso di cartelle di cache, mai seguendo collegamenti.
 
+### Porte aperte
+*Porte aperte...* nel menu (o doppio clic sul controllo nell'analisi) elenca le porte TCP e UDP in ascolto: programma,
+firma digitale, da dove sono raggiungibili (solo dal PC, da una rete, da tutte), cosa fa il firewall di Windows e una
+valutazione con il motivo: *normale*, *da sapere* (es. condivisione file), *da guardare* (controllo remoto, Desktop
+remoto, database o server di sviluppo aperti a tutta la rete, programmi senza firma) e *sospetta* (programma senza firma
+in una cartella dell'utente, porte tipiche di backdoor). Non è un antivirus: dice cosa il PC espone alla rete. Sola
+lettura, senza permessi di amministratore e senza traffico (la firma si verifica senza controlli online).
+
 ### Avvisi
 Un fumetto quando qualcosa resta al limite: CPU sopra il 90% per 2 minuti, RAM sopra il 92%, PC molto caldo,
 disco quasi pieno, batteria quasi scarica. Indica il processo responsabile; cliccandolo si apre l'analisi.
@@ -54,7 +62,7 @@ Ogni minuto CorbolSys salva un riassunto (medie, picchi, processo più pesante):
 *quando* il PC è stato lento e *per colpa di chi*.
 
 ### Analisi approfondita
-17 controlli in sola lettura, senza permessi di amministratore, in 10-40 secondi:
+18 controlli in sola lettura, senza permessi di amministratore, in 10-40 secondi:
 
 | Controllo | Cosa guarda |
 |---|---|
@@ -70,6 +78,7 @@ Ogni minuto CorbolSys salva un riassunto (medie, picchi, processo più pesante):
 | Avvio automatico | programmi che partono con Windows (anche quelli disattivati) |
 | Aggiornamenti di Windows | data dell'ultimo aggiornamento, riavvio in sospeso |
 | Antivirus | antivirus attivo e aggiornato |
+| Porte aperte | porte raggiungibili dalla rete, firewall, programmi da guardare o sospetti |
 | Dispositivi e driver | dispositivi con errori in Gestione dispositivi |
 | File temporanei | cartella temporanea e Cestino |
 | Indice di affidabilità | indice di stabilità di Windows (Monitoraggio affidabilità) |
@@ -156,10 +165,13 @@ activity and free space, network speed, temperature, battery and the heaviest pr
 CPU load in the tray icon. It warns you when something stays at the limit (CPU, memory, heat, full disk, low battery)
 and records a per-minute summary (24 hours in memory, optionally 7 days on disk) to tell *when* the PC was slow and *why*.
 
-- **In-depth analysis**: 17 read-only checks without administrator rights (system, CPU, memory, disk space and health,
+- **In-depth analysis**: 18 read-only checks without administrator rights (system, CPU, memory, disk space and health,
   disk errors, blue screens and unexpected shutdowns, WHEA hardware errors, crashing programs, temperature, battery
-  health, startup programs, Windows Update, antivirus, devices and drivers, temporary files, reliability index), with a
-  score out of 100, plain-language advice and a report to copy or save.
+  health, startup programs, Windows Update, antivirus, open ports, devices and drivers, temporary files, reliability
+  index), with a score out of 100, plain-language advice and a report to copy or save.
+- **Open ports**: the TCP/UDP ports the PC listens on, with program, digital signature, reachability (this PC only,
+  one network, all networks), Windows firewall verdict and a rule-based assessment (normal, good to know, to check,
+  suspicious). Not an antivirus: it shows what the PC exposes to the network. Read-only, no admin rights, no traffic.
 - **AI assistant** (optional, same as CorbolIp): local model (Qwen3.5 via llama.cpp, data stays on the PC; reuses the files
   already downloaded by CorbolIp or CorbolPad), Claude (API key), Claude Code (your own subscription, personal use) or any
   OpenAI-compatible service. *Explain with AI* and a chat about your PC; with Claude and OpenAI-compatible services the

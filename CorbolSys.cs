@@ -56,7 +56,7 @@ namespace CorbolSys
                 WidgetForm.SnapshotPath = args[1];
                 WidgetForm.SnapshotAi = args.Length > 2 && args[2].Equals("ai", StringComparison.OrdinalIgnoreCase);
                 if (args.Length > 2 && (args[2].Equals("space", StringComparison.OrdinalIgnoreCase) || args[2].Equals("cleanup", StringComparison.OrdinalIgnoreCase)
-                                        || args[2].Equals("welcome", StringComparison.OrdinalIgnoreCase)))
+                                        || args[2].Equals("welcome", StringComparison.OrdinalIgnoreCase) || args[2].Equals("ports", StringComparison.OrdinalIgnoreCase)))
                 {
                     WidgetForm.SnapshotWindow = args[2].ToLowerInvariant();
                     WidgetForm.SnapshotArg = args.Length > 3 ? args[3] : null;
@@ -252,6 +252,7 @@ namespace CorbolSys
             menu.Items.Add(miAnalysis);
             menu.Items.Add(Mi("Spazio su disco...", "Disk space...", delegate { DiskSpaceForm.ShowOnce(appIcon, null); }));
             menu.Items.Add(Mi("Pulizia disco...", "Disk cleanup...", delegate { CleanupForm.ShowOnce(appIcon); }));
+            menu.Items.Add(Mi("Porte aperte...", "Open ports...", delegate { PortsForm.ShowOnce(appIcon); }));
             menu.Items.Add(Mi("Assistente AI...", "AI assistant...", delegate { AiSettingsForm.ShowOnce(appIcon, null); }));
             menu.Items.Add(Mi("Gestione attività", "Task Manager", delegate { Launch("taskmgr.exe", ""); }));
             menu.Items.Add(Mi("Copia stato attuale", "Copy current status", delegate { try { Clipboard.SetText(StatusText()); tray.ShowBalloonTip(1500, "CorbolSys", L.T("Stato copiato negli appunti", "Status copied to clipboard"), ToolTipIcon.Info); } catch { } }));
@@ -1207,6 +1208,13 @@ namespace CorbolSys
                 {
                     var f = DiskSpaceForm.Current;
                     if (f == null) { DiskSpaceForm.ShowOnce(appIcon, SnapshotArg); t.Interval = 1000; return; }
+                    if (f.Busy) return;
+                    Save(f);
+                }
+                else if (SnapshotWindow == "ports")
+                {
+                    var f = PortsForm.Current;
+                    if (f == null) { PortsForm.ShowOnce(appIcon); t.Interval = 1000; return; }
                     if (f.Busy) return;
                     Save(f);
                 }

@@ -11,7 +11,7 @@ namespace CorbolSys
 {
     static class Help
     {
-        public const string Guide = "", Analysis = "analysis", Space = "space", Cleanup = "cleanup", Assistant = "ai";
+        public const string Guide = "", Analysis = "analysis", Space = "space", Cleanup = "cleanup", Assistant = "ai", Ports = "ports";
         const string Wiki = "https://github.com/corbolma/CorbolSys/wiki/";
 
         // Pagina e sezione (ancore generate da GitHub dai titoli della wiki)
@@ -24,6 +24,7 @@ namespace CorbolSys
                 case Assistant: return Wiki + (it ? "Assistente-AI" : "AI-assistant");
                 case Space: return Wiki + (it ? "Guida-utente#spazio-su-disco" : "User-guide#disk-space");
                 case Cleanup: return Wiki + (it ? "Guida-utente#pulizia-disco" : "User-guide#disk-cleanup");
+                case Ports: return Wiki + (it ? "Guida-utente#porte-aperte" : "User-guide#open-ports");
                 default: return Wiki + (it ? "Guida-utente" : "User-guide");
             }
         }

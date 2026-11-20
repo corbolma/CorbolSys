@@ -63,7 +63,9 @@ namespace CorbolSys
                 new AiTool { Name = "installed_programs", Description = "Lists installed programs with publisher, version and install date; with days > 0 only those installed in the last N days.",
                              Schema = Schema(new Dictionary<string, object> { { "days", Prop("integer", "0 for all, or the last N days (1-365)") } }, "days") },
                 new AiTool { Name = "startup_programs", Description = "Lists the programs that start with Windows (Run registry keys and Startup folders), including disabled ones.",
-                             Schema = Schema(new Dictionary<string, object>()) }
+                             Schema = Schema(new Dictionary<string, object>()) },
+                new AiTool { Name = "open_ports", Description = "Lists the TCP and UDP ports this PC listens on: program, path, digital signature, whether reachable from this PC only or from the network, whether the Windows firewall lets connections in, and a rule-based assessment (normal, good to know, to check, suspicious). Read-only, no network traffic.",
+                             Schema = Schema(new Dictionary<string, object> { { "include_local", Prop("boolean", "Also list ports reachable only from this PC (127.0.0.1)") } }, "include_local") }
             };
         }
 
@@ -93,6 +95,7 @@ namespace CorbolSys
                 case "stopped_services": return L.T("servizi automatici fermi", "stopped automatic services");
                 case "installed_programs": return L.T("programmi installati", "installed programs");
                 case "startup_programs": return L.T("programmi all'avvio", "startup programs");
+                case "open_ports": return L.T("porte aperte", "open ports");
             }
             return c.Name ?? "?";
         }
@@ -118,6 +121,14 @@ namespace CorbolSys
                 case "installed_programs": return InstalledPrograms(IntArg(c, "days", 0, 0, 365));
                 case "startup_programs":
                     return string.Join("\n", Analysis.StartupItems().Select(i => (i.Enabled ? "on " : "off ") + i.Name + " | " + Analysis.Short(i.Command, 150) + " | " + i.Where));
+                case "open_ports":
+                {
+                    var ports = Ports.List();
+                    bool local = Arg(c, "include_local").Equals("true", StringComparison.OrdinalIgnoreCase);
+                    var sb = new StringBuilder(PortsForm.Summary(ports) + "\n");
+                    foreach (var p in ports.Where(p => local || p.Reach != PortReach.ThisPc)) sb.AppendLine(p.Line());
+                    return sb.ToString();
+                }
             }
             return "Error: unknown tool " + c.Name + ".";
         }

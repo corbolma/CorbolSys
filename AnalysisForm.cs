@@ -84,6 +84,15 @@ namespace CorbolSys
             list.Columns.Add(L.T("Risultato", "Result"));
             list.SelectedIndexChanged += delegate { ShowDetail(); };
             list.Resize += delegate { FitColumns(); };
+            // doppio clic (o Invio) sui controlli che hanno una finestra con l'elenco completo
+            list.ItemActivate += delegate
+            {
+                var sel = list.SelectedItems.Count > 0 ? list.SelectedItems[0].Tag as SysCheck : null;
+                if (sel == null) return;
+                if (sel.Id == "ports") PortsForm.ShowOnce(Icon);
+                else if (sel.Id == "space") DiskSpaceForm.ShowOnce(Icon, null);
+                else if (sel.Id == "junk") CleanupForm.ShowOnce(Icon);
+            };
             txtDetail = new TextBox
             {
                 Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BackColor = Color.FromArgb(248, 249, 251),
@@ -188,7 +197,7 @@ namespace CorbolSys
             list.Columns[1].Width = w - list.Columns[0].Width - 2;
         }
 
-        static Bitmap StateIcon(CheckState st, int size)
+        internal static Bitmap StateIcon(CheckState st, int size)
         {
             var bmp = new Bitmap(size, size);
             using (var g = Graphics.FromImage(bmp))
