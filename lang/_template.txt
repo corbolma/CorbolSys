@@ -294,6 +294,7 @@ Extra checks: none =
 Instructions = 
 Message = 
 Previous reply = 
+not set up = 
 What is sent - CorbolSys = 
 not logged in = 
 Default ({0}) = 

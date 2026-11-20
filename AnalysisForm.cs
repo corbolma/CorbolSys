@@ -49,6 +49,7 @@ namespace CorbolSys
         readonly bool ai;
         readonly Button btnExplain, btnAsk;
         readonly TextBox txtAi, txtQuestion;
+        Label lblService;   // servizio e account in uso
         CancellationTokenSource aiCts;
         readonly List<AiMessage> convo = new List<AiMessage>();   // conversazione (già anonimizzata)
         readonly StringBuilder transcript = new StringBuilder();  // quello che si vede nel riquadro (in chiaro)
@@ -153,8 +154,13 @@ namespace CorbolSys
                 ask.Controls.Add(txtQuestion);
                 ask.Controls.Add(new Panel { Dock = DockStyle.Right, Width = 6 });
                 ask.Controls.Add(btnAsk);
+                // servizio e account in uso, sempre visibile sotto i pulsanti
+                lblService = new Label { Dock = DockStyle.Top, Height = 22, AutoEllipsis = true, ForeColor = Color.DimGray, TextAlign = ContentAlignment.MiddleLeft };
+                UpdateService();
+                Activated += delegate { UpdateService(); };   // per esempio dopo un cambio di account nelle impostazioni
                 right.Controls.Add(txtAi);
                 right.Controls.Add(ask);
+                right.Controls.Add(lblService);
                 right.Controls.Add(head);
 
                 var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, FixedPanel = FixedPanel.None, SplitterWidth = 6 };
@@ -569,6 +575,14 @@ namespace CorbolSys
                 sb.AppendLine(m.Text);
             }
             return sb.ToString();
+        }
+
+        void UpdateService()
+        {
+            if (lblService == null) return;
+            var p = AiSettings.CurrentProvider();
+            string s = p != null ? ClaudeCodeProvider.DisplayNameOf(p) : L.T("non configurato", "not set up");
+            lblService.Text = L.F("Servizio: {0}", "Service: {0}", s);
         }
 
         void ShowSent()
