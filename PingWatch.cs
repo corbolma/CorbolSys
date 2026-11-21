@@ -1,13 +1,16 @@
 // Ping dall'esterno: chi ha fatto ping a questo PC.
 // - Senza permessi di amministratore: se il firewall lascia arrivare i ping sulle reti attive, quanti ping hanno
-//   avuto risposta dall'avvio di Windows (contatori ICMP) e, mentre CorbolSys è aperta, quando sono arrivati
+//   avuto risposta dall'avvio di Windows (contatori ICMP) e, mentre l'app è aperta, quando sono arrivati
 //   (il contatore si legge ogni 30 secondi).
 // - Chi li ha fatti: Windows lo sa solo se il registro del firewall è acceso. Con una conferma di amministratore
-//   (CorbolSys.exe /pinglog on <SID>) CorbolSys lo accende e lo fa scrivere in %ProgramData%\CorbolSys\Firewall,
-//   leggibile dall'utente: da lì in poi lo legge senza altri permessi. /pinglog off lo spegne e cancella il registro.
+//   (<app>.exe /pinglog on <SID>) l'app lo accende e lo fa scrivere in %ProgramData%\<app>\Firewall, leggibile
+//   dall'utente: da lì in poi lo legge senza altri permessi. /pinglog off lo spegne e cancella il registro.
+// Il registro del firewall è uno solo per tutto il PC: CorbolSys e CorbolIp usano questo stesso file (cambiano solo
+// namespace e App) e ognuna riconosce come proprio anche il registro acceso dall'altra.
 // Nessun traffico di rete: gli indirizzi non vengono risolti in nomi.
 // Compatibile con il compilatore csc di .NET Framework 4.x (C# 5).
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -16,6 +19,7 @@ using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -53,6 +57,13 @@ namespace CorbolSys
 
     static class PingWatch
     {
+        const string App = "CorbolSys";
+        static readonly string[] Apps = { "CorbolSys", "CorbolIp" };   // le app che sanno leggere il registro
+
+        // Chiamato (da un thread in background) con una riga di testo per ogni gruppo di ping nuovi mentre l'app è
+        // aperta. null = nessuno (CorbolSys); CorbolIp li scrive nel registro eventi.
+        public static Action<string> OnPings = null;
+
         // ---------- contatori di Windows (dall'avvio) ----------
         [DllImport("iphlpapi.dll")] static extern uint GetIcmpStatisticsEx(IntPtr stats, uint family);
 
@@ -78,9 +89,78 @@ namespace CorbolSys
             return n;
         }
 
+        // ---------- firewall: lascia arrivare i ping? ----------
+        public static int Profiles;   // reti attive: 1 dominio, 2 privata, 4 pubblica (dopo AnswersPing)
+
+        static object Get(object o, string name, params object[] args)
+        {
+            return o.GetType().InvokeMember(name, BindingFlags.GetProperty, null, o, args.Length > 0 ? args : null);
+        }
+
+        // Il firewall lascia arrivare i ping (richiesta di eco ICMPv4) sulle reti attive? null = non noto
+        public static bool? AnswersPing()
+        {
+            try
+            {
+                var t = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
+                if (t == null) return null;
+                object pol = Activator.CreateInstance(t);
+                int profiles = Convert.ToInt32(Get(pol, "CurrentProfileTypes"));
+                Profiles = profiles;
+                bool on = false, block = true;
+                foreach (int p in new[] { 1, 2, 4 })
+                {
+                    if ((profiles & p) == 0) continue;
+                    if (Convert.ToBoolean(Get(pol, "FirewallEnabled", p))) on = true;
+                    if (Convert.ToInt32(Get(pol, "DefaultInboundAction", p)) == 1) block = false;
+                }
+                if (!on) return true;
+                bool allow = false;
+                foreach (object r in (IEnumerable)Get(pol, "Rules"))
+                {
+                    try
+                    {
+                        if (Convert.ToInt32(Get(r, "Direction")) != 1 || !Convert.ToBoolean(Get(r, "Enabled"))) continue;
+                        if ((Convert.ToInt32(Get(r, "Profiles")) & profiles) == 0) continue;
+                        // regole di un'app dello Store (con pacchetto o utente proprietario): valgono solo per quell'app
+                        string package = "", owner = "";
+                        try { package = Convert.ToString(Get(r, "LocalAppPackageId") ?? ""); } catch { }
+                        try { owner = Convert.ToString(Get(r, "LocalUserOwner") ?? ""); } catch { }
+                        if (package.Length > 0 || owner.Length > 0) continue;
+                        int protocol = Convert.ToInt32(Get(r, "Protocol"));
+                        string app = Convert.ToString(Get(r, "ApplicationName") ?? ""), service = Convert.ToString(Get(r, "ServiceName") ?? "");
+                        bool icmp = protocol == 1 && IcmpMatches(Convert.ToString(Get(r, "IcmpTypesAndCodes") ?? ""), 8);
+                        bool any = protocol == 256 && app.Length == 0 && (service.Length == 0 || service == "*");   // i ping li riceve Windows, non un programma
+                        if (!icmp && !any) continue;
+                        if (Convert.ToInt32(Get(r, "Action")) != 1) return false;   // le regole che bloccano vincono
+                        allow = true;
+                    }
+                    catch { }
+                    finally { if (Marshal.IsComObject(r)) Marshal.ReleaseComObject(r); }
+                }
+                return allow || !block;
+            }
+            catch { return null; }
+        }
+
+        // "8:*", "8:0,0:*", "*" o vuoto (= tutti i tipi)
+        static bool IcmpMatches(string spec, int type)
+        {
+            if (string.IsNullOrEmpty(spec) || spec.Trim() == "*") return true;
+            foreach (var raw in spec.Split(','))
+            {
+                string t = raw.Split(':')[0].Trim();
+                int n;
+                if (t == "*" || (int.TryParse(t, out n) && n == type)) return true;
+            }
+            return false;
+        }
+
         // ---------- mentre l'app è aperta: quando arrivano ----------
         static readonly List<PingEvent> seen = new List<PingEvent>();
         static long last = -1;
+        static string tailFile;   // registro letto fin qui (per i ping nuovi)
+        static long tailPos = -1;
         static Timer timer;
 
         public static void Start()
@@ -90,17 +170,35 @@ namespace CorbolSys
 
         static void Sample()
         {
-            long n = Answered();
-            if (n < 0) return;
-            lock (seen)
+            try
             {
-                if (last >= 0 && n > last)
+                long n = Answered();
+                long delta = 0;
+                lock (seen)
                 {
-                    seen.Add(new PingEvent { Time = DateTime.Now, Count = (int)Math.Min(n - last, int.MaxValue) });
-                    if (seen.Count > 500) seen.RemoveAt(0);
+                    if (n >= 0 && last >= 0 && n > last)
+                    {
+                        delta = n - last;
+                        seen.Add(new PingEvent { Time = DateTime.Now, Count = (int)Math.Min(delta, int.MaxValue) });
+                        if (seen.Count > 500) seen.RemoveAt(0);
+                    }
+                    if (n >= 0) last = n;
                 }
-                last = n;
+                if (OnPings == null) return;
+                // col registro acceso si sa anche chi (e si vedono anche i ping bloccati); altrimenti solo quanti
+                var news = NewFromLog();
+                if (news != null)
+                {
+                    foreach (var s in Group(news).OrderBy(x => x.First))
+                        OnPings(s.Allowed
+                            ? L.F("Ping ricevuti da {0} ({1}): {2}, con risposta", "Pings received from {0} ({1}): {2}, answered", s.From, s.Where, s.Count)
+                            : L.F("Ping ricevuti da {0} ({1}): {2}, bloccati dal firewall", "Pings received from {0} ({1}): {2}, blocked by the firewall", s.From, s.Where, s.Count));
+                }
+                else if (delta > 0)
+                    OnPings(L.F("Ping ricevuti: {0}, con risposta (chi li ha fatti si vede solo col registro del firewall acceso)",
+                                "Pings received: {0}, answered (who sent them shows only with the firewall log on)", delta));
             }
+            catch { }
         }
 
         public static List<PingEvent> SeenWhileOpen()
@@ -108,12 +206,29 @@ namespace CorbolSys
             lock (seen) return seen.ToList();
         }
 
-        // ---------- registro del firewall ----------
-        public static string LogDir
+        // Ping scritti nel registro dall'ultima lettura; null = registro spento o non leggibile.
+        // La prima volta si parte dalla fine: niente ping vecchi.
+        static List<PingEvent> NewFromLog()
         {
-            get { return Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "CorbolSys"), "Firewall"); }
+            string file = CurrentLogFile();
+            if (file == null || !File.Exists(file)) { tailFile = null; return null; }
+            long len;
+            try { len = new FileInfo(file).Length; } catch { return null; }
+            if (!string.Equals(file, tailFile, StringComparison.OrdinalIgnoreCase) || tailPos < 0) { tailFile = file; tailPos = len; return new List<PingEvent>(); }
+            if (len < tailPos) tailPos = 0;   // il registro è ricominciato (il vecchio è diventato .old)
+            if (len == tailPos) return new List<PingEvent>();
+            bool readable;
+            var res = Parse(file, tailPos, out readable);
+            tailPos = len;
+            return readable ? res : null;
         }
-        public static string LogFile { get { return Path.Combine(LogDir, "pfirewall.log"); } }
+
+        // ---------- registro del firewall ----------
+        static string AppLogDir(string app)
+        {
+            return Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), app), "Firewall");
+        }
+        public static string LogDir { get { return AppLogDir(App); } }
         const int LogSizeKb = 16384;
 
         const string PolicyKey = @"SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy";
@@ -121,25 +236,48 @@ namespace CorbolSys
 
         public enum LogState { Off, Ours, Elsewhere }
 
-        // Ours = registro acceso su tutte le reti e scritto nella cartella di CorbolSys; Elsewhere = acceso da
-        // qualcun altro in un'altra cartella (di solito non leggibile senza permessi di amministratore)
-        public static LogState Logging()
+        // Registro acceso su tutte le reti: il file in cui scrive (null se spento o diverso tra le reti)
+        static string ActiveLogFile(out bool any)
         {
-            bool any = false, ours = true;
+            any = false;
+            string file = null;
+            bool same = true;
             try
             {
                 foreach (var p in ProfileKeys)
                     using (var k = Registry.LocalMachine.OpenSubKey(PolicyKey + "\\" + p + "\\Logging"))
                     {
-                        if (k == null) { ours = false; continue; }
+                        if (k == null) { same = false; continue; }
                         bool on = Convert.ToInt32(k.GetValue("LogDroppedPackets", 0)) != 0 || Convert.ToInt32(k.GetValue("LogSuccessfulConnections", 0)) != 0;
                         string path = Environment.ExpandEnvironmentVariables(Convert.ToString(k.GetValue("LogFilePath", "")));
                         if (on) any = true;
-                        if (!on || !string.Equals(path, LogFile, StringComparison.OrdinalIgnoreCase)) ours = false;
+                        if (!on) same = false;
+                        else if (file == null) file = path;
+                        else if (!string.Equals(file, path, StringComparison.OrdinalIgnoreCase)) same = false;
                     }
             }
-            catch { return LogState.Off; }
-            return ours ? LogState.Ours : any ? LogState.Elsewhere : LogState.Off;
+            catch { return null; }
+            return same ? file : null;
+        }
+
+        // Il registro acceso da CorbolSys o da CorbolIp (leggibile dall'utente); null = nessuno dei due
+        public static string CurrentLogFile()
+        {
+            bool any;
+            string file = ActiveLogFile(out any);
+            if (file == null) return null;
+            foreach (var app in Apps)
+                if (string.Equals(Path.GetDirectoryName(file), AppLogDir(app), StringComparison.OrdinalIgnoreCase)) return file;
+            return null;
+        }
+
+        // Ours = registro acceso su tutte le reti, nella cartella di CorbolSys o di CorbolIp; Elsewhere = acceso da
+        // qualcun altro in un'altra cartella (di solito non leggibile senza permessi di amministratore)
+        public static LogState Logging()
+        {
+            bool any;
+            ActiveLogFile(out any);
+            return CurrentLogFile() != null ? LogState.Ours : any ? LogState.Elsewhere : LogState.Off;
         }
 
         // Accende o spegne il registro chiedendo la conferma di amministratore. Chiamare fuori dal thread
@@ -161,7 +299,7 @@ namespace CorbolSys
             catch { return false; }
         }
 
-        // Eseguito come amministratore (CorbolSys.exe /pinglog on|off <SID dell'utente>)
+        // Eseguito come amministratore (<app>.exe /pinglog on|off <SID dell'utente>)
         public static int SetLogging(bool on, string userSid)
         {
             try
@@ -180,7 +318,7 @@ namespace CorbolSys
                         sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(userSid), FileSystemRights.ReadAndExecute, inherit, PropagationFlags.None, AccessControlType.Allow));
                     Directory.SetAccessControl(LogDir, sec);
 
-                    bool ok = Netsh("logging filename \"" + LogFile + "\"");
+                    bool ok = Netsh("logging filename \"" + Path.Combine(LogDir, "pfirewall.log") + "\"");
                     ok &= Netsh("logging maxfilesize " + LogSizeKb);
                     ok &= Netsh("logging droppedconnections enable");
                     ok &= Netsh("logging allowedconnections enable");
@@ -188,14 +326,16 @@ namespace CorbolSys
                 }
                 else
                 {
+                    string file = CurrentLogFile();   // anche quello acceso dall'altra app
                     bool ok = Netsh("logging allowedconnections disable");
                     ok &= Netsh("logging droppedconnections disable");
                     ok &= Netsh("logging filename \"" + Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @"LogFiles\Firewall\pfirewall.log") + "\"");
                     ok &= Netsh("logging maxfilesize 4096");
                     // il servizio chiude il file poco dopo: qualche tentativo
-                    for (int i = 0; i < 10 && Directory.Exists(LogDir); i++)
+                    string dir = file != null ? Path.GetDirectoryName(file) : LogDir;
+                    for (int i = 0; i < 10 && Directory.Exists(dir); i++)
                     {
-                        try { Directory.Delete(LogDir, true); } catch { Thread.Sleep(500); }
+                        try { Directory.Delete(dir, true); } catch { Thread.Sleep(500); }
                     }
                     return ok ? 0 : 1;
                 }
@@ -223,20 +363,37 @@ namespace CorbolSys
         // readable = false se il registro non c'è o non si legge.
         public static List<PingEvent> FromLog(out bool readable)
         {
-            return ParseLog(new[] { LogFile + ".old", LogFile }, out readable);
+            readable = false;
+            string file = CurrentLogFile();
+            if (file == null) return new List<PingEvent>();
+            return ParseLog(new[] { file + ".old", file }, out readable);
         }
 
         public static List<PingEvent> ParseLog(IEnumerable<string> files, out bool readable)
         {
             var res = new List<PingEvent>();
             readable = false;
-            var mine = LocalAddresses();
             foreach (var file in files)
             {
                 if (!File.Exists(file)) continue;
-                try
+                bool ok;
+                res.AddRange(Parse(file, 0, out ok));
+                readable |= ok;
+            }
+            return res;
+        }
+
+        // Le righe da 'from' in poi (byte) di un file del registro
+        static List<PingEvent> Parse(string file, long from, out bool readable)
+        {
+            var res = new List<PingEvent>();
+            readable = false;
+            var mine = LocalAddresses();
+            try
+            {
+                using (var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                 {
-                    using (var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                    if (from > 0 && from < fs.Length) fs.Seek(from, SeekOrigin.Begin);
                     using (var sr = new StreamReader(fs))
                     {
                         readable = true;
@@ -257,9 +414,8 @@ namespace CorbolSys
                             if (!echo) continue;
                             string dir = get("path");
                             if (dir.Length > 0 && !dir.Equals("RECEIVE", StringComparison.OrdinalIgnoreCase)) continue;
-                            string from = get("src-ip");
                             IPAddress a;
-                            if (!IPAddress.TryParse(from, out a) || IPAddress.IsLoopback(a) || mine.Contains(a)) continue;   // ping fatti da questo PC
+                            if (!IPAddress.TryParse(get("src-ip"), out a) || IPAddress.IsLoopback(a) || mine.Contains(a)) continue;   // ping fatti da questo PC
                             DateTime t;
                             if (!DateTime.TryParseExact(get("date") + " " + get("time"), "yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture,
                                                         System.Globalization.DateTimeStyles.AssumeLocal, out t)) continue;
@@ -267,8 +423,8 @@ namespace CorbolSys
                         }
                     }
                 }
-                catch { }
             }
+            catch { }
             return res;
         }
 
@@ -318,7 +474,7 @@ namespace CorbolSys
                 .OrderByDescending(s => s.Last).ToList();
         }
 
-        // ---------- riepilogo (finestra Porte aperte, analisi) ----------
+        // ---------- riepilogo ----------
         public static string NetworkText(int profiles)
         {
             var n = new List<string>();
@@ -331,15 +487,14 @@ namespace CorbolSys
         // Una riga: risponde ai ping? quanti dall'avvio? registro acceso?
         public static string Summary()
         {
-            bool? answers = Ports.AnswersPing();
-            string net = NetworkText(Ports.FirewallProfiles);
+            bool? answers = AnswersPing();
+            string net = NetworkText(Profiles);
             string s = !answers.HasValue ? L.T("Ping: non so se il firewall li lascia arrivare", "Ping: unknown whether the firewall lets them in")
                      : answers.Value ? L.F("Ping: il PC risponde su questa rete ({0})", "Ping: the PC answers on this network ({0})", net)
                      : L.F("Ping: il PC non risponde su questa rete ({0}), il firewall li blocca", "Ping: the PC doesn't answer on this network ({0}), the firewall blocks them", net);
             long n = Answered();
             if (n >= 0) s += " · " + L.F("{0} ping con risposta dall'avvio di Windows", "{0} pings answered since Windows started", n);
-            var log = Logging();
-            if (log == LogState.Ours)
+            if (Logging() == LogState.Ours)
             {
                 bool readable;
                 var ev = FromLog(out readable);

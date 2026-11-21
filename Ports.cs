@@ -490,12 +490,11 @@ namespace CorbolSys
         class FwRule
         {
             public bool Allow;
-            public string App = "", Service = "", Ports = "", Icmp = "";
+            public string App = "", Service = "", Ports = "";
             public int Protocol, Profiles;
         }
 
         public static bool FirewallKnown, FirewallOn;
-        public static int FirewallProfiles;   // reti attive: 1 dominio, 2 privata, 4 pubblica
         static bool defaultBlock = true;
         static List<FwRule> rules = new List<FwRule>();
 
@@ -522,7 +521,6 @@ namespace CorbolSys
                     if (Convert.ToInt32(Get(pol, "DefaultInboundAction", p)) == 1) block = false;
                 }
                 FirewallOn = on;
-                FirewallProfiles = profiles;
                 defaultBlock = block;
                 foreach (object r in (IEnumerable)Get(pol, "Rules"))
                 {
@@ -532,7 +530,7 @@ namespace CorbolSys
                         int prof = Convert.ToInt32(Get(r, "Profiles"));
                         if ((prof & profiles) == 0) continue;
                         // regole di un'app dello Store (Teams, Dropbox...): valgono solo per quell'app, non per i
-                        // programmi dell'elenco né per i ping
+                        // programmi dell'elenco
                         // (hanno il pacchetto o l'utente proprietario)
                         string package = "", owner = "";
                         try { package = Convert.ToString(Get(r, "LocalAppPackageId") ?? ""); } catch { }
@@ -546,7 +544,6 @@ namespace CorbolSys
                             App = app.Length > 0 ? Environment.ExpandEnvironmentVariables(app) : "",
                             Service = Convert.ToString(Get(r, "ServiceName") ?? ""),
                             Ports = protocol == 1 || protocol == 58 ? "" : Convert.ToString(Get(r, "LocalPorts") ?? "*"),
-                            Icmp = protocol == 1 || protocol == 58 ? Convert.ToString(Get(r, "IcmpTypesAndCodes") ?? "") : "",
                             Protocol = protocol,
                             Profiles = prof
                         });
@@ -592,38 +589,6 @@ namespace CorbolSys
                 allow = true;
             }
             return allow || !defaultBlock;
-        }
-
-        // Il firewall lascia arrivare i ping (richiesta di eco ICMPv4) sulle reti attive? null = non noto.
-        // Legge le regole da sé, così si può chiedere anche senza aver elencato le porte.
-        public static bool? AnswersPing()
-        {
-            LoadFirewall();
-            if (!FirewallKnown) return null;
-            if (!FirewallOn) return true;
-            bool allow = false;
-            foreach (var r in rules)
-            {
-                bool icmp = r.Protocol == 1 && IcmpMatches(r.Icmp, 8);
-                bool any = r.Protocol == 256 && r.App.Length == 0 && (r.Service.Length == 0 || r.Service == "*");   // i ping li riceve Windows, non un programma
-                if (!icmp && !any) continue;
-                if (!r.Allow) return false;
-                allow = true;
-            }
-            return allow || !defaultBlock;
-        }
-
-        // "8:*", "8:0,0:*", "*" o vuoto (= tutti i tipi)
-        static bool IcmpMatches(string spec, int type)
-        {
-            if (string.IsNullOrEmpty(spec) || spec.Trim() == "*") return true;
-            foreach (var raw in spec.Split(','))
-            {
-                string t = raw.Split(':')[0].Trim();
-                int n;
-                if (t == "*" || (int.TryParse(t, out n) && n == type)) return true;
-            }
-            return false;
         }
 
         // ---------- elenco ----------

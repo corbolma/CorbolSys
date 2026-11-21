@@ -444,6 +444,9 @@ To know who pings, CorbolSys turns on the Windows firewall log: Windows will wri
 The firewall log could not be changed (confirmation cancelled or permission denied). = 
 Pings received (CorbolSys {0}) - {1} = 
 local network = 
+Pings received from {0} ({1}): {2}, answered = 
+Pings received from {0} ({1}): {2}, blocked by the firewall = 
+Pings received: {0}, answered (who sent them shows only with the firewall log on) = 
 domain = 
 private = 
 public = 
