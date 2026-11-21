@@ -34,9 +34,16 @@ namespace CorbolSys
         //   /report <file>     -> analisi completa salvata su file, senza interfaccia (per l'IT o per gli script)
         //   /snapshot <file> [analysis] -> immagine PNG del widget (o della finestra di analisi), poi esce
         //   /snapshot <file> welcome <n> -> scheda n (0-3) della presentazione
+        //   /pinglog on|off <SID> -> (come amministratore) accende o spegne il registro del firewall per i ping
         [STAThread]
         static void Main(string[] args)
         {
+            // come amministratore, dalla finestra Ping ricevuti: accende o spegne il registro del firewall (PingWatch.cs)
+            if (args.Length >= 2 && args[0].Equals("/pinglog", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.Exit(PingWatch.SetLogging(args[1].Equals("on", StringComparison.OrdinalIgnoreCase), args.Length > 2 ? args[2] : null));
+                return;
+            }
             if (args.Length >= 2 && args[0].Equals("/report", StringComparison.OrdinalIgnoreCase))
             {
                 L.LoadFromSettings();
@@ -56,7 +63,8 @@ namespace CorbolSys
                 WidgetForm.SnapshotPath = args[1];
                 WidgetForm.SnapshotAi = args.Length > 2 && args[2].Equals("ai", StringComparison.OrdinalIgnoreCase);
                 if (args.Length > 2 && (args[2].Equals("space", StringComparison.OrdinalIgnoreCase) || args[2].Equals("cleanup", StringComparison.OrdinalIgnoreCase)
-                                        || args[2].Equals("welcome", StringComparison.OrdinalIgnoreCase) || args[2].Equals("ports", StringComparison.OrdinalIgnoreCase)))
+                                        || args[2].Equals("welcome", StringComparison.OrdinalIgnoreCase) || args[2].Equals("ports", StringComparison.OrdinalIgnoreCase)
+                                        || args[2].Equals("ping", StringComparison.OrdinalIgnoreCase)))
                 {
                     WidgetForm.SnapshotWindow = args[2].ToLowerInvariant();
                     WidgetForm.SnapshotArg = args.Length > 3 ? args[3] : null;
@@ -79,6 +87,7 @@ namespace CorbolSys
                     return;
                 }
                 if (cmd == "exit") return;
+                PingWatch.Start();   // quando arrivano i ping, mentre l'app è aperta
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new WidgetForm(cmd));
@@ -1215,6 +1224,13 @@ namespace CorbolSys
                 {
                     var f = PortsForm.Current;
                     if (f == null) { PortsForm.ShowOnce(appIcon); t.Interval = 1000; return; }
+                    if (f.Busy) return;
+                    Save(f);
+                }
+                else if (SnapshotWindow == "ping")
+                {
+                    var f = PingForm.Current;
+                    if (f == null) { PingForm.ShowOnce(null); t.Interval = 1000; return; }
                     if (f.Busy) return;
                     Save(f);
                 }

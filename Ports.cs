@@ -16,6 +16,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace CorbolSys
 {
@@ -35,6 +36,11 @@ namespace CorbolSys
         public bool? FirewallOpen;        // null = non noto
         public PortRisk Risk = PortRisk.Normal;
         public string Why = "";
+        // Porte del processo System: il programma che la usa davvero tramite HTTP.sys (se non è di Windows) e la
+        // valutazione propria del driver o del servizio (null = valutazione normale)
+        public string Owner = "";
+        public string SysWhy;
+        public PortRisk SysRisk = PortRisk.Normal;
 
         public string ProcessLabel
         {
@@ -249,21 +255,24 @@ namespace CorbolSys
         // ---------- servizi di Windows per processo (svchost) ----------
         // Senza permessi di amministratore il percorso dei processi di sistema non si legge, ma quello scritto nella
         // configurazione del servizio sì: servePath riceve l'eseguibile del servizio per ogni processo
-        static Dictionary<int, List<string>> ServicesByPid(Dictionary<int, string> servicePath)
+        // displayNames riceve il nome da mostrare di ogni servizio avviato (Spooler -> Spooler di stampa)
+        static Dictionary<int, List<string>> ServicesByPid(Dictionary<int, string> servicePath, Dictionary<string, string> displayNames)
         {
             var res = new Dictionary<int, List<string>>();
             try
             {
-                using (var s = new ManagementObjectSearcher(@"root\cimv2", "SELECT ProcessId, DisplayName, PathName FROM Win32_Service WHERE State = 'Running'"))
+                using (var s = new ManagementObjectSearcher(@"root\cimv2", "SELECT ProcessId, Name, DisplayName, PathName FROM Win32_Service WHERE State = 'Running'"))
                 {
                     s.Options.Timeout = TimeSpan.FromSeconds(15);
                     foreach (ManagementBaseObject o in s.Get())
                     {
                         int pid = Convert.ToInt32(o["ProcessId"]);
                         if (pid <= 0) continue;
+                        string display = Convert.ToString(o["DisplayName"]).Trim();
+                        displayNames[Convert.ToString(o["Name"])] = display;
                         List<string> l;
                         if (!res.TryGetValue(pid, out l)) res[pid] = l = new List<string>();
-                        l.Add(Convert.ToString(o["DisplayName"]).Trim());
+                        l.Add(display);
                         string exe = ExeFromCommand(Convert.ToString(o["PathName"] ?? ""));
                         if (exe.Length > 0 && !servicePath.ContainsKey(pid)) servicePath[pid] = exe;
                     }
@@ -285,15 +294,208 @@ namespace CorbolSys
         // Processi di Windows che non sono servizi ma ospitano porte di sistema (RPC)
         static readonly string[] WindowsProcesses = { "lsass", "wininit", "services", "csrss", "smss", "svchost", "spoolsv", "dashost" };
 
+        // ---------- porte del processo System ----------
+        // System (PID 4) è il kernel di Windows: le sue porte le apre un driver per conto di qualcun altro.
+        // - HTTP.sys, il server web del kernel, apre una porta quando un programma o un servizio registra un indirizzo
+        //   (IIS, stampanti e scanner in rete, WinRM, programmi .NET...): netsh dice chi, anche senza permessi di
+        //   amministratore;
+        // - le altre sono di driver noti (condivisione di file, NetBIOS...).
+        class HttpOwner
+        {
+            public List<int> Pids = new List<int>();
+            public List<string> Services = new List<string>();   // nomi brevi (W3SVC, Spooler...)
+            public List<string> Pools = new List<string>();      // pool di applicazioni di IIS
+        }
+
+        static readonly Regex HttpId = new Regex(@"^\s*ID:\s*(\d+),");
+        static readonly Regex HttpUrl = new Regex(@"^\s*https?://.*?:(\d+)/", RegexOptions.IgnoreCase);
+        static readonly Regex ServiceName = new Regex(@"^[A-Za-z][\w.\-]*$");
+        static readonly Regex HexId = new Regex(@"^[0-9A-Fa-f]{16}$");
+
+        static bool IsIis(string service)
+        {
+            return service.Equals("W3SVC", StringComparison.OrdinalIgnoreCase) || service.Equals("WAS", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Porta TCP -> chi l'ha registrata in HTTP.sys. Le etichette di netsh sono nella lingua di Windows: si leggono
+        // solo gli ID dei processi, i nomi brevi dei servizi e gli indirizzi, che non cambiano.
+        static Dictionary<int, HttpOwner> HttpSysPorts()
+        {
+            var res = new Dictionary<int, HttpOwner>();
+            string text;
+            try
+            {
+                var psi = new ProcessStartInfo("netsh.exe", "http show servicestate view=requestq verbose=no")
+                {
+                    UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true,
+                    StandardOutputEncoding = Encoding.GetEncoding(System.Globalization.CultureInfo.CurrentCulture.TextInfo.OEMCodePage)
+                };
+                using (var pr = Process.Start(psi))
+                {
+                    var read = pr.StandardOutput.ReadToEndAsync();
+                    if (!pr.WaitForExit(10000)) { try { pr.Kill(); } catch { } return res; }
+                    text = read.Result;
+                }
+            }
+            catch { return res; }
+
+            // un blocco per coda di richieste: comincia con una riga non rientrata ("Nome coda di richieste: ...")
+            var blocks = new List<List<string>>();
+            foreach (var l in text.Replace("\r", "").Split('\n'))
+            {
+                if (l.Trim().Length == 0) continue;
+                if (!char.IsWhiteSpace(l[0])) blocks.Add(new List<string>());
+                if (blocks.Count > 0) blocks[blocks.Count - 1].Add(l);
+            }
+            foreach (var b in blocks)
+            {
+                var pids = new List<int>();
+                var services = new List<string>();
+                var ports = new HashSet<int>();
+                for (int i = 0; i < b.Count; i++)
+                {
+                    var m = HttpId.Match(b[i]);
+                    if (m.Success)
+                    {
+                        pids.Add(int.Parse(m.Groups[1].Value));
+                        // la riga dopo l'ID del processo elenca i suoi servizi ("Servizi: WAS, W3SVC")
+                        int c = i + 1 < b.Count && !HttpId.IsMatch(b[i + 1]) ? b[i + 1].IndexOf(':') : -1;
+                        if (c > 0)
+                            foreach (var s in b[i + 1].Substring(c + 1).Split(','))
+                            {
+                                string t = s.Trim();
+                                if (ServiceName.IsMatch(t) && !HexId.IsMatch(t) && !services.Contains(t, StringComparer.OrdinalIgnoreCase)) services.Add(t);
+                            }
+                        continue;
+                    }
+                    m = HttpUrl.Match(b[i]);
+                    int port;
+                    if (m.Success && int.TryParse(m.Groups[1].Value, out port)) ports.Add(port);
+                }
+                if (ports.Count == 0) continue;
+                // la coda di un pool di IIS ha il nome del pool; le altre di solito non hanno nome
+                string pool = null;
+                if (services.Any(IsIis))
+                {
+                    int c = b[0].IndexOf(':');
+                    if (c > 0) pool = b[0].Substring(c + 1).Trim().TrimEnd('.');
+                }
+                foreach (int port in ports)
+                {
+                    HttpOwner o;
+                    if (!res.TryGetValue(port, out o)) res[port] = o = new HttpOwner();
+                    foreach (int pid in pids) if (!o.Pids.Contains(pid)) o.Pids.Add(pid);
+                    foreach (var s in services) if (!o.Services.Contains(s, StringComparer.OrdinalIgnoreCase)) o.Services.Add(s);
+                    if (!string.IsNullOrEmpty(pool) && !o.Pools.Contains(pool)) o.Pools.Add(pool);
+                }
+            }
+            return res;
+        }
+
+        // Scrive in p cosa c'è dietro una porta di System: in Services la descrizione (mostrata accanto a "System"),
+        // in SysWhy/SysRisk la valutazione; se dietro HTTP.sys c'è un programma che non è di Windows, Path e firma
+        // diventano i suoi, così la valutazione guarda quel programma.
+        static void DescribeSystem(OpenPort p, Dictionary<int, HttpOwner> http, Dictionary<string, string> displayNames, string win,
+                                   Func<string, Tuple<bool, string>> sign)
+        {
+            HttpOwner o;
+            if (p.Proto == "TCP" && http.TryGetValue(p.Port, out o))
+            {
+                var who = new List<string>();
+                if (o.Pools.Count > 0) who.Add("IIS: " + string.Join(", ", o.Pools));
+                foreach (var s in o.Services.Where(s => !IsIis(s)))
+                {
+                    string d;
+                    who.Add(displayNames.TryGetValue(s, out d) ? d : s);
+                }
+                // processi che non sono servizi (un programma .NET, un server di sviluppo...)
+                foreach (int pid in o.Pids)
+                {
+                    string name = "", path = ImagePath(pid);
+                    try { using (var pr = Process.GetProcessById(pid)) name = pr.ProcessName; } catch { }
+                    bool windows = path.StartsWith(win + "\\", StringComparison.OrdinalIgnoreCase) || WindowsProcesses.Contains(name.ToLowerInvariant());
+                    if (windows || name.Length == 0) continue;
+                    if (!who.Contains(name)) who.Add(name);
+                    if (p.Owner.Length == 0 && path.Length > 0)
+                    {
+                        var s = sign(path);
+                        p.Owner = name; p.Path = path; p.Windows = false; p.Signed = s.Item1; p.Publisher = s.Item2;
+                    }
+                }
+                p.Services = "HTTP.sys" + (who.Count > 0 ? L.T(" per ", " for ") + string.Join(", ", who.Take(4)) + (who.Count > 4 ? ", ..." : "") : "");
+                if (p.Owner.Length > 0) return;   // la valutazione è quella del programma
+                if (o.Pools.Count > 0)
+                    Sys(p, PortRisk.Info, L.T("server web IIS: i siti sono raggiungibili dalla rete; se non servono ad altri PC, ferma il sito o blocca la porta nel firewall",
+                                              "IIS web server: the sites are reachable from the network; if other PCs don't need them, stop the site or block the port in the firewall"));
+                else if (o.Services.Contains("WinRM", StringComparer.OrdinalIgnoreCase))
+                    Sys(p, PortRisk.Info, L.T("gestione remota: chi ha un account amministratore del PC può comandarlo dalla rete", "remote management: anyone with an administrator account on the PC can control it from the network"));
+                else if (who.Count > 0)
+                    Sys(p, PortRisk.Normal, L.T("servizio di Windows", "Windows service"));
+                else
+                    Sys(p, PortRisk.Normal, L.T("porta tenuta da HTTP.sys senza un programma collegato in questo momento", "port held by HTTP.sys with no program attached right now"));
+                return;
+            }
+
+            // driver e servizi noti del kernel
+            bool tcp = p.Proto == "TCP";
+            switch ((tcp ? 100000 : 200000) + p.Port)
+            {
+                case 100445:
+                    Kernel(p, L.T("SMB: condivisione di file e stampanti, servizio Server", "SMB: file and printer sharing, Server service"), PortRisk.Info,
+                           L.T("condivisione di file e stampanti di Windows: le cartelle condivise si raggiungono da qui", "Windows file and printer sharing: shared folders are reached through it"));
+                    break;
+                case 100139:
+                    Kernel(p, L.T("NetBIOS: condivisione di file alla vecchia maniera", "NetBIOS: old-style file sharing"), PortRisk.Info,
+                           L.T("condivisione di file e stampanti di Windows per i PC vecchi; senza PC vecchi in rete si può spegnere NetBIOS nella scheda di rete",
+                               "Windows file and printer sharing for old PCs; with no old PCs on the network NetBIOS can be turned off on the network adapter"));
+                    break;
+                case 200137:
+                    Kernel(p, L.T("NetBIOS: nome del PC in rete", "NetBIOS: PC name on the network"), PortRisk.Normal,
+                           L.T("servizio di Windows: risponde a chi cerca questo PC per nome", "Windows service: answers whoever looks for this PC by name"));
+                    break;
+                case 200138:
+                    Kernel(p, L.T("NetBIOS: annunci per Esplora rete", "NetBIOS: announcements for network browsing"), PortRisk.Normal,
+                           L.T("servizio di Windows: fa vedere il PC agli altri in Esplora file > Rete", "Windows service: shows the PC to others in File Explorer > Network"));
+                    break;
+                case 100080: case 100443:
+                    Kernel(p, L.T("HTTP.sys: server web di Windows (IIS o altri programmi)", "HTTP.sys: Windows web server (IIS or other programs)"), PortRisk.Info,
+                           L.T("server web: pagine raggiungibili dalla rete", "web server: pages reachable from the network"));
+                    break;
+                case 105357: case 105358:
+                    Kernel(p, L.T("WSD: stampanti e scanner in rete", "WSD: network printers and scanners"), PortRisk.Normal,
+                           L.T("servizio di Windows: trova e annuncia i dispositivi in rete", "Windows service: finds and announces devices on the network"));
+                    break;
+                case 102869:
+                    Kernel(p, L.T("UPnP: dispositivi e condivisione multimediale in rete", "UPnP: network devices and media sharing"), PortRisk.Normal,
+                           L.T("servizio di Windows", "Windows service"));
+                    break;
+                case 105985: case 105986: case 147001:
+                    Kernel(p, L.T("WinRM: gestione remota di Windows (PowerShell remoto)", "WinRM: Windows Remote Management (PowerShell remoting)"), PortRisk.Info,
+                           L.T("gestione remota: chi ha un account amministratore del PC può comandarlo dalla rete", "remote management: anyone with an administrator account on the PC can control it from the network"));
+                    break;
+                case 110243:
+                    Kernel(p, L.T("condivisione multimediale di Windows Media Player", "Windows Media Player media sharing"), PortRisk.Normal,
+                           L.T("servizio di Windows", "Windows service"));
+                    break;
+                default:
+                    p.Services = L.T("driver del kernel", "kernel driver");
+                    break;
+            }
+        }
+
+        static void Kernel(OpenPort p, string what, PortRisk risk, string why) { p.Services = what; Sys(p, risk, why); }
+        static void Sys(OpenPort p, PortRisk risk, string why) { p.SysRisk = risk; p.SysWhy = why; }
+
         // ---------- firewall di Windows (lettura delle regole, senza permessi di amministratore) ----------
         class FwRule
         {
             public bool Allow;
-            public string App = "", Service = "", Ports = "";
+            public string App = "", Service = "", Ports = "", Icmp = "";
             public int Protocol, Profiles;
         }
 
         public static bool FirewallKnown, FirewallOn;
+        public static int FirewallProfiles;   // reti attive: 1 dominio, 2 privata, 4 pubblica
         static bool defaultBlock = true;
         static List<FwRule> rules = new List<FwRule>();
 
@@ -320,6 +522,7 @@ namespace CorbolSys
                     if (Convert.ToInt32(Get(pol, "DefaultInboundAction", p)) == 1) block = false;
                 }
                 FirewallOn = on;
+                FirewallProfiles = profiles;
                 defaultBlock = block;
                 foreach (object r in (IEnumerable)Get(pol, "Rules"))
                 {
@@ -328,14 +531,23 @@ namespace CorbolSys
                         if (Convert.ToInt32(Get(r, "Direction")) != 1 || !Convert.ToBoolean(Get(r, "Enabled"))) continue;   // solo in entrata, attive
                         int prof = Convert.ToInt32(Get(r, "Profiles"));
                         if ((prof & profiles) == 0) continue;
+                        // regole di un'app dello Store (Teams, Dropbox...): valgono solo per quell'app, non per i
+                        // programmi dell'elenco né per i ping
+                        // (hanno il pacchetto o l'utente proprietario)
+                        string package = "", owner = "";
+                        try { package = Convert.ToString(Get(r, "LocalAppPackageId") ?? ""); } catch { }
+                        try { owner = Convert.ToString(Get(r, "LocalUserOwner") ?? ""); } catch { }
+                        if (package.Length > 0 || owner.Length > 0) continue;
                         string app = Convert.ToString(Get(r, "ApplicationName") ?? "");
+                        int protocol = Convert.ToInt32(Get(r, "Protocol"));
                         rules.Add(new FwRule
                         {
                             Allow = Convert.ToInt32(Get(r, "Action")) == 1,
                             App = app.Length > 0 ? Environment.ExpandEnvironmentVariables(app) : "",
                             Service = Convert.ToString(Get(r, "ServiceName") ?? ""),
-                            Ports = Convert.ToString(Get(r, "LocalPorts") ?? "*"),
-                            Protocol = Convert.ToInt32(Get(r, "Protocol")),
+                            Ports = protocol == 1 || protocol == 58 ? "" : Convert.ToString(Get(r, "LocalPorts") ?? "*"),
+                            Icmp = protocol == 1 || protocol == 58 ? Convert.ToString(Get(r, "IcmpTypesAndCodes") ?? "") : "",
+                            Protocol = protocol,
                             Profiles = prof
                         });
                     }
@@ -382,6 +594,38 @@ namespace CorbolSys
             return allow || !defaultBlock;
         }
 
+        // Il firewall lascia arrivare i ping (richiesta di eco ICMPv4) sulle reti attive? null = non noto.
+        // Legge le regole da sé, così si può chiedere anche senza aver elencato le porte.
+        public static bool? AnswersPing()
+        {
+            LoadFirewall();
+            if (!FirewallKnown) return null;
+            if (!FirewallOn) return true;
+            bool allow = false;
+            foreach (var r in rules)
+            {
+                bool icmp = r.Protocol == 1 && IcmpMatches(r.Icmp, 8);
+                bool any = r.Protocol == 256 && r.App.Length == 0 && (r.Service.Length == 0 || r.Service == "*");   // i ping li riceve Windows, non un programma
+                if (!icmp && !any) continue;
+                if (!r.Allow) return false;
+                allow = true;
+            }
+            return allow || !defaultBlock;
+        }
+
+        // "8:*", "8:0,0:*", "*" o vuoto (= tutti i tipi)
+        static bool IcmpMatches(string spec, int type)
+        {
+            if (string.IsNullOrEmpty(spec) || spec.Trim() == "*") return true;
+            foreach (var raw in spec.Split(','))
+            {
+                string t = raw.Split(':')[0].Trim();
+                int n;
+                if (t == "*" || (int.TryParse(t, out n) && n == type)) return true;
+            }
+            return false;
+        }
+
         // ---------- elenco ----------
         // Porte UDP dinamiche (dal 49152): sono quasi sempre programmi che fanno da client (browser, Teams...): si contano a parte
         public static int HiddenUdp;
@@ -413,31 +657,43 @@ namespace CorbolSys
 
             string win = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
             var servicePath = new Dictionary<int, string>();
-            var services = ServicesByPid(servicePath);
+            var displayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var services = ServicesByPid(servicePath, displayNames);
             LoadFirewall();
             var signCache = new Dictionary<string, Tuple<bool, string>>(StringComparer.OrdinalIgnoreCase);
+            Func<string, Tuple<bool, string>> sign = path =>
+            {
+                Tuple<bool, string> s;
+                if (!signCache.TryGetValue(path, out s))
+                {
+                    bool ok = VerifySignature(path);
+                    signCache[path] = s = Tuple.Create(ok, ok ? Signer(path) : "");
+                }
+                return s;
+            };
+            Dictionary<int, HttpOwner> http = null;
             foreach (var p in list)
             {
-                if (p.Pid == 4 || p.Pid == 0) { p.Process = "System"; p.Windows = true; }
-                else
+                if (p.Pid == 4 || p.Pid == 0)
                 {
-                    try { using (var pr = Process.GetProcessById(p.Pid)) p.Process = pr.ProcessName; } catch { }
-                    p.Path = ImagePath(p.Pid);
-                    string sp;
-                    if (p.Path.Length == 0 && servicePath.TryGetValue(p.Pid, out sp) && File.Exists(sp)) p.Path = sp;
-                    if (p.Path.Length > 0 && p.Path.StartsWith(win + "\\", StringComparison.OrdinalIgnoreCase)) p.Windows = true;
-                    else if (p.Path.Length == 0 && WindowsProcesses.Contains(p.Process.ToLowerInvariant())) p.Windows = true;
-                    else if (p.Path.Length > 0)
-                    {
-                        Tuple<bool, string> s;
-                        if (!signCache.TryGetValue(p.Path, out s))
-                        {
-                            bool ok = VerifySignature(p.Path);
-                            signCache[p.Path] = s = Tuple.Create(ok, ok ? Signer(p.Path) : "");
-                        }
-                        p.Signed = s.Item1;
-                        p.Publisher = s.Item2;
-                    }
+                    p.Process = "System"; p.Windows = true;
+                    if (p.Reach != PortReach.ThisPc) p.FirewallOpen = FirewallAllows(p, null);   // il firewall vede il traffico come System
+                    if (http == null) http = HttpSysPorts();
+                    DescribeSystem(p, http, displayNames, win, sign);
+                    Judge(p);
+                    continue;
+                }
+                try { using (var pr = Process.GetProcessById(p.Pid)) p.Process = pr.ProcessName; } catch { }
+                p.Path = ImagePath(p.Pid);
+                string sp;
+                if (p.Path.Length == 0 && servicePath.TryGetValue(p.Pid, out sp) && File.Exists(sp)) p.Path = sp;
+                if (p.Path.Length > 0 && p.Path.StartsWith(win + "\\", StringComparison.OrdinalIgnoreCase)) p.Windows = true;
+                else if (p.Path.Length == 0 && WindowsProcesses.Contains(p.Process.ToLowerInvariant())) p.Windows = true;
+                else if (p.Path.Length > 0)
+                {
+                    var s = sign(p.Path);
+                    p.Signed = s.Item1;
+                    p.Publisher = s.Item2;
                 }
                 List<string> sv;
                 services.TryGetValue(p.Pid, out sv);
@@ -471,7 +727,7 @@ namespace CorbolSys
 
         static void Judge(OpenPort p)
         {
-            string name = p.Process.ToLowerInvariant();
+            string name = (p.Owner.Length > 0 ? p.Owner : p.Process).ToLowerInvariant();
             bool net = p.Reach != PortReach.ThisPc;
             bool blocked = p.FirewallOpen.HasValue && !p.FirewallOpen.Value;
             Action<PortRisk, string> set = (r, why) => { p.Risk = r; p.Why = why; };
@@ -501,6 +757,8 @@ namespace CorbolSys
                                         "development server or database open to the whole network: if not needed, make it listen on 127.0.0.1 only"));
             else if (!p.Windows && p.Path.Length > 0 && !p.Signed)
                 set(PortRisk.Check, L.T("programma senza firma digitale che accetta connessioni dalla rete", "program without a digital signature that accepts connections from the network"));
+            else if (p.SysWhy != null)
+                set(p.SysRisk, p.SysWhy);
             else if (p.Windows && p.Proto == "TCP" && (p.Port == 445 || p.Port == 139))
                 set(PortRisk.Info, L.T("condivisione di file e stampanti di Windows", "Windows file and printer sharing"));
             else if (p.Path.Length == 0 && !p.Windows)

@@ -34,6 +34,7 @@ namespace CorbolSys
         readonly TextBox txtDetail;
         readonly Button btnRefresh, btnCopy, btnFolder;
         List<OpenPort> ports = new List<OpenPort>();
+        string pingLine = "";
         volatile bool loading;
 
         PortsForm(Icon icon)
@@ -52,7 +53,7 @@ namespace CorbolSys
             var icons = new ImageList { ImageSize = new Size(iconSize, iconSize), ColorDepth = ColorDepth.Depth32Bit };
             foreach (CheckState st in Enum.GetValues(typeof(CheckState))) icons.Images.Add(st.ToString(), AnalysisForm.StateIcon(st, iconSize));
 
-            var top = new Panel { Dock = DockStyle.Top, Height = 64, Padding = new Padding(12, 8, 12, 0) };
+            var top = new Panel { Dock = DockStyle.Top, Height = 92, Padding = new Padding(12, 8, 12, 0) };
             lblSummary = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, Text = L.T("Lettura delle porte in corso...", "Reading the ports...") };
             chkLocal = new CheckBox { Dock = DockStyle.Bottom, Height = 26, Text = L.T("Mostra anche le porte raggiungibili solo da questo PC", "Also show ports reachable only from this PC") };
             chkLocal.CheckedChanged += delegate { Fill(); };
@@ -78,6 +79,8 @@ namespace CorbolSys
             btnRefresh = new Button { Text = L.T("Aggiorna", "Refresh"), Size = new Size(100, 30) };
             btnCopy = new Button { Text = L.T("Copia elenco", "Copy list"), Size = new Size(120, 30), Enabled = false };
             btnFolder = new Button { Text = L.T("Apri cartella del programma", "Open program folder"), Size = new Size(210, 30), Enabled = false };
+            var btnPing = new Button { Text = L.T("Ping ricevuti...", "Pings received..."), Size = new Size(150, 30) };
+            btnPing.Click += delegate { PingForm.ShowOnce(this); };
             var btnClose = new Button { Text = L.T("Chiudi", "Close"), Size = new Size(100, 30) };
             btnRefresh.Click += delegate { Reload(); };
             btnCopy.Click += delegate { try { Clipboard.SetText(ListText()); lblSummary.Text = L.T("Elenco copiato negli appunti.", "List copied to the clipboard."); } catch { } };
@@ -88,7 +91,7 @@ namespace CorbolSys
             };
             btnClose.Click += delegate { Close(); };
             CancelButton = btnClose;
-            bar.Controls.AddRange(new Control[] { btnRefresh, btnCopy, btnFolder, btnClose, Help.Button(this, Help.Ports, Point.Empty) });
+            bar.Controls.AddRange(new Control[] { btnRefresh, btnCopy, btnFolder, btnPing, btnClose, Help.Button(this, Help.Ports, Point.Empty) });
 
             Controls.Add(list);
             Controls.Add(top);
@@ -120,12 +123,15 @@ namespace CorbolSys
             var t = new Thread(delegate ()
             {
                 List<OpenPort> res;
+                string ping = "";
                 try { res = Ports.List(); } catch { res = new List<OpenPort>(); }
+                try { ping = PingWatch.Summary(); } catch { }
                 try
                 {
                     BeginInvoke(new Action(delegate
                     {
                         ports = res;
+                        pingLine = ping;
                         loading = false;
                         btnRefresh.Enabled = btnCopy.Enabled = true;
                         Fill();
@@ -163,7 +169,7 @@ namespace CorbolSys
             }
             list.EndUpdate();
             FitColumns();   // ora c'è (o non c'è) la barra verticale: le colonne si riadattano senza barra orizzontale
-            lblSummary.Text = Summary(ports);
+            lblSummary.Text = Summary(ports) + (pingLine.Length > 0 ? "\n" + pingLine : "");
             txtDetail.Text = list.Items.Count > 0 ? L.T("Seleziona una porta per vedere i dettagli.", "Select a port to see the details.") : "";
             btnFolder.Enabled = false;
         }
@@ -207,6 +213,7 @@ namespace CorbolSys
             var sb = new StringBuilder();
             sb.AppendLine(L.F("Porte aperte (CorbolSys {0}) - {1}", "Open ports (CorbolSys {0}) - {1}", AppVersion.Text, DateTime.Now.ToString("yyyy-MM-dd HH:mm")));
             sb.AppendLine(Summary(ports));
+            if (pingLine.Length > 0) sb.AppendLine(pingLine);
             sb.AppendLine();
             foreach (var p in ports.Where(x => chkLocal.Checked || x.Reach != PortReach.ThisPc)) sb.AppendLine(p.Line());
             return sb.ToString().Replace("\r\n", "\n").Replace("\n", "\r\n");
