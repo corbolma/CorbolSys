@@ -173,6 +173,7 @@ namespace CorbolSys.Setup
 
             CloseRunning();
             if (!silent) StopPingLog();   // prima di cancellare l'exe, che lo spegne
+            StopPingCapture(silent);
             foreach (var f in new[] { StartMenuLnk, DesktopLnk })
                 try { if (File.Exists(f)) File.Delete(f); } catch { }
             try { using (var k = Registry.CurrentUser.OpenSubKey(RunKey, true)) if (k != null) k.DeleteValue("CorbolSys", false); } catch { }
@@ -249,6 +250,43 @@ namespace CorbolSys.Setup
                     MessageBox.Show(L.T("Il registro del firewall è rimasto acceso. Puoi spegnerlo da Sicurezza di Windows > Firewall e protezione della rete > Impostazioni avanzate > Proprietà, scheda di ogni profilo, Registrazione.",
                                         "The firewall log is still on. You can turn it off in Windows Security > Firewall & network protection > Advanced settings > Properties, tab of each profile, Logging."),
                                     L.T("Disinstalla CorbolSys", "Uninstall CorbolSys"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch { }
+        }
+
+        // ---------- cattura dei ping con pktmon (PingCapture.cs) ----------
+        // I risultati in %ProgramData%\CorbolSys\Pktmon li può cancellare l'utente; se la cattura è ancora in corso
+        // (avviata dopo l'ultimo avvio di Windows) la ferma l'app come amministratore (/pingcapture off).
+        [DllImport("kernel32.dll")] static extern ulong GetTickCount64();
+
+        static void StopPingCapture(bool silent)
+        {
+            try
+            {
+                string dir = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "CorbolSys"), "Pktmon");
+                if (!Directory.Exists(dir)) return;
+                bool running = false;
+                try
+                {
+                    var parts = File.ReadAllText(Path.Combine(dir, "state.txt")).Trim().Split(' ');
+                    long t;
+                    DateTime boot = DateTime.UtcNow - TimeSpan.FromMilliseconds(GetTickCount64());
+                    running = parts[0] == "running" && parts.Length > 1 && long.TryParse(parts[1], out t) && new DateTime(t, DateTimeKind.Utc) > boot;
+                }
+                catch { }
+                if (running && !silent && File.Exists(ExePath))
+                {
+                    MessageBox.Show(L.T("La cattura dei ping con pktmon è ancora in corso: CorbolSys la ferma. Windows chiederà la conferma di amministratore.",
+                                        "The ping capture with pktmon is still running: CorbolSys stops it. Windows will ask for administrator confirmation."),
+                                    L.T("Disinstalla CorbolSys", "Uninstall CorbolSys"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    try
+                    {
+                        using (var p = Process.Start(new ProcessStartInfo(ExePath, "/pingcapture off") { UseShellExecute = true, Verb = "runas" }))
+                            p.WaitForExit(120000);
+                    }
+                    catch { }   // conferma annullata: si ferma comunque al prossimo riavvio
+                }
+                try { if (Directory.Exists(dir)) Directory.Delete(dir, true); } catch { }
             }
             catch { }
         }

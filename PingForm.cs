@@ -1,6 +1,7 @@
 // Finestra "Ping ricevuti": chi ha fatto ping a questo PC (vedi PingWatch.cs). Si apre da Porte aperte.
 // Senza registro del firewall mostra solo quando sono arrivati (mentre CorbolSys era aperta); con il registro
-// acceso mostra indirizzo, esito (risposto o bloccato) e quante volte.
+// acceso mostra indirizzo, esito (risposto o bloccato) e quante volte. Con una cattura di pktmon fermata (PingCapture.cs)
+// mostra quella, che vede i ping sulla scheda di rete, prima del firewall: indirizzo, risposto o senza risposta.
 // Compatibile con il compilatore csc di .NET Framework 4.x (C# 5).
 using System;
 using System.Collections.Generic;
@@ -29,12 +30,17 @@ namespace CorbolSys
 
         readonly Label lblStatus, lblLog, lblEmpty;
         readonly ListView list;
-        readonly Button btnLog, btnRefresh, btnCopy;
+        readonly Button btnLog, btnRefresh, btnCopy, btnCapture, btnDiscard;
         volatile bool loading;
         PingWatch.LogState logState;
         List<PingSource> sources = new List<PingSource>();
         List<PingEvent> counted = new List<PingEvent>();
         bool logReadable;
+        PingCapture.State capState;
+        DateTime capStart, capStop;
+        List<PingSource> capSources = new List<PingSource>();
+        bool capReadable;
+        bool ShowingCapture { get { return capState == PingCapture.State.Done && capReadable; } }
 
         PingForm(Icon icon)
         {
@@ -46,7 +52,7 @@ namespace CorbolSys
             BackColor = Color.White;
             if (icon != null) Icon = icon;
 
-            var top = new Panel { Dock = DockStyle.Top, Height = 112, Padding = new Padding(12, 8, 12, 4) };
+            var top = new Panel { Dock = DockStyle.Top, Height = 128, Padding = new Padding(12, 8, 12, 4) };
             lblStatus = new Label { Dock = DockStyle.Top, Height = 44, AutoEllipsis = true };
             lblLog = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, ForeColor = Color.FromArgb(80, 80, 80) };
             top.Controls.Add(lblLog);
@@ -68,8 +74,12 @@ namespace CorbolSys
             lblEmpty = new Label { AutoSize = false, Height = 60, Dock = DockStyle.Bottom, TextAlign = ContentAlignment.TopCenter, ForeColor = Color.FromArgb(110, 110, 110), Visible = false };
             list.Controls.Add(lblEmpty);
 
-            var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 46, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(10, 6, 10, 6) };
+            var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 84, FlowDirection = FlowDirection.LeftToRight, WrapContents = true, Padding = new Padding(10, 4, 10, 4) };
             btnLog = new Button { Size = new Size(260, 30), Enabled = false };
+            btnCapture = new Button { Size = new Size(260, 30), Enabled = false, Visible = PingCapture.Available };
+            btnDiscard = new Button { Text = L.T("Elimina la cattura", "Delete the capture"), Size = new Size(150, 30), Visible = false };
+            btnCapture.Click += delegate { ToggleCapture(); };
+            btnDiscard.Click += delegate { DiscardCapture(); };
             btnRefresh = new Button { Text = L.T("Aggiorna", "Refresh"), Size = new Size(100, 30) };
             btnCopy = new Button { Text = L.T("Copia elenco", "Copy list"), Size = new Size(120, 30), Enabled = false };
             var btnClose = new Button { Text = L.T("Chiudi", "Close"), Size = new Size(100, 30) };
@@ -78,12 +88,13 @@ namespace CorbolSys
             btnCopy.Click += delegate { try { Clipboard.SetText(ListText()); } catch { } };
             btnClose.Click += delegate { Close(); };
             CancelButton = btnClose;
-            bar.Controls.AddRange(new Control[] { btnLog, btnRefresh, btnCopy, btnClose, Help.Button(this, Help.Ports, Point.Empty) });
+            bar.Controls.AddRange(new Control[] { btnLog, btnCapture, btnDiscard, btnRefresh, btnCopy, btnClose, Help.Button(this, Help.Ports, Point.Empty) });
+            bar.SetFlowBreak(btnCapture, true);
 
             Controls.Add(list);
             Controls.Add(top);
             Controls.Add(bar);
-            ClientSize = new Size(760, 460);
+            ClientSize = new Size(760, 500);
             MinimumSize = new Size(560, 340);
             Scale(new SizeF(UiFont.Scale, UiFont.Scale));
             Shown += delegate { FitColumns(); Reload(); };
@@ -103,7 +114,7 @@ namespace CorbolSys
         {
             if (loading) return;
             loading = true;
-            btnRefresh.Enabled = btnCopy.Enabled = btnLog.Enabled = false;
+            btnRefresh.Enabled = btnCopy.Enabled = btnLog.Enabled = btnCapture.Enabled = btnDiscard.Enabled = false;
             lblStatus.Text = L.T("Lettura in corso...", "Reading...");
             var t = new Thread(delegate ()
             {
@@ -112,6 +123,16 @@ namespace CorbolSys
                 bool readable = false;
                 var src = new List<PingSource>();
                 var cnt = new List<PingEvent>();
+                var cst = PingCapture.State.None;
+                DateTime cFrom = DateTime.MinValue, cTo = DateTime.MinValue;
+                bool cRead = false;
+                var csrc = new List<PingSource>();
+                try
+                {
+                    cst = PingCapture.Current(out cFrom, out cTo);
+                    if (cst == PingCapture.State.Done) csrc = PingWatch.Group(PingCapture.Results(out cRead));
+                }
+                catch { }
                 try
                 {
                     status = PingWatch.Summary();
@@ -126,8 +147,9 @@ namespace CorbolSys
                     {
                         lblStatus.Text = status;
                         logState = state; logReadable = readable; sources = src; counted = cnt;
+                        capState = cst; capStart = cFrom; capStop = cTo; capReadable = cRead; capSources = csrc;
                         loading = false;
-                        btnRefresh.Enabled = btnCopy.Enabled = btnLog.Enabled = true;
+                        btnRefresh.Enabled = btnCopy.Enabled = btnLog.Enabled = btnCapture.Enabled = btnDiscard.Enabled = true;
                         Fill();
                     }));
                 }
@@ -160,9 +182,40 @@ namespace CorbolSys
                     break;
             }
 
+            bool running = capState == PingCapture.State.Running || capState == PingCapture.State.Interrupted;
+            btnCapture.Text = running ? L.T("Ferma la cattura e leggila", "Stop the capture and read it")
+                            : capState == PingCapture.State.Done ? L.T("Nuova cattura con pktmon...", "New capture with pktmon...")
+                            : L.T("Cattura i ping con pktmon...", "Capture pings with pktmon...");
+            btnDiscard.Visible = capState == PingCapture.State.Done;
+            if (capState == PingCapture.State.Running)
+                lblLog.Text = L.F("Cattura con pktmon in corso dalle {0}: usa il PC normalmente, anche a CorbolSys chiusa, poi \"Ferma la cattura e leggila\" per vedere chi ha fatto ping. Intanto: ",
+                                  "Capture with pktmon running since {0}: use the PC as usual, even with CorbolSys closed, then \"Stop the capture and read it\" to see who pinged. Meanwhile: ",
+                                  capStart.ToString("t")) + lblLog.Text;
+            else if (capState == PingCapture.State.Interrupted)
+                lblLog.Text = L.F("La cattura con pktmon avviata alle {0} si è fermata col riavvio del PC: \"Ferma la cattura e leggila\" mostra i ping arrivati fino ad allora.",
+                                  "The pktmon capture started at {0} stopped when the PC restarted: \"Stop the capture and read it\" shows the pings received until then.",
+                                  capStart.ToString("g"));
+            else if (capState == PingCapture.State.Done)
+                lblLog.Text = capReadable
+                    ? L.F("Cattura con pktmon dalle {0} alle {1}: qui sotto chi ha fatto ping al PC in quel periodo, dal più recente. pktmon vede i ping sulla scheda di rete, prima del firewall: \"senza risposta\" sono quelli fermati dal firewall.",
+                          "Capture with pktmon from {0} to {1}: below, who pinged the PC in that period, most recent first. pktmon sees pings on the network adapter, before the firewall: \"no answer\" means the firewall stopped them.",
+                          capStart.ToString("g"), capStop.ToString("t"))
+                    : L.T("La cattura con pktmon è stata fermata ma il file dei risultati non si legge. Prova una nuova cattura.",
+                          "The pktmon capture was stopped but its results file can't be read. Try a new capture.");
+
             list.BeginUpdate();
             list.Items.Clear();
-            if (logState == PingWatch.LogState.Ours && logReadable)
+            if (ShowingCapture)
+            {
+                foreach (var s in capSources)
+                    list.Items.Add(new ListViewItem(new[]
+                    {
+                        s.From, s.Where, s.Allowed ? L.T("risposto", "answered") : L.T("senza risposta", "no answer"),
+                        s.Count.ToString(), s.First.ToString("g"), s.Last.ToString("g")
+                    }) { ForeColor = s.Allowed ? list.ForeColor : Color.FromArgb(120, 120, 120) });
+                lblEmpty.Text = L.T("Nessun ping ricevuto durante la cattura", "No pings received during the capture");
+            }
+            else if (logState == PingWatch.LogState.Ours && logReadable)
             {
                 foreach (var s in sources)
                     list.Items.Add(new ListViewItem(new[]
@@ -210,6 +263,53 @@ namespace CorbolSys
             });
             t.IsBackground = true;
             t.Start();
+        }
+
+        void ToggleCapture()
+        {
+            bool start = capState != PingCapture.State.Running && capState != PingCapture.State.Interrupted;
+            if (start && MessageBox.Show(this,
+                    L.F("CorbolSys avvia pktmon, il Monitoraggio pacchetti di Windows, solo per i ping (ICMP): registra i ping che arrivano alla scheda di rete, con l'indirizzo di chi li manda, anche quelli che il firewall blocca. Il file va in {0} (al massimo {1} MB) e lo leggono solo il tuo utente e gli amministratori.\n\nLa cattura continua anche a CorbolSys chiusa, finché non la fermi da questa finestra o riavvii il PC. Per vedere se i ping arrivano durante un'analisi, rifai l'analisi mentre la cattura è in corso.\n\nServe la conferma di amministratore, ora e quando la fermi. Eventuali filtri di pktmon messi da altri vengono tolti.",
+                        "CorbolSys starts pktmon, the Windows Packet Monitor, for pings only (ICMP): it records the pings reaching the network adapter, with the sender's address, including those the firewall blocks. The file goes to {0} (at most {1} MB) and only your user and administrators can read it.\n\nThe capture keeps going even with CorbolSys closed, until you stop it from this window or restart the PC. To see whether pings arrive during an analysis, run the analysis again while the capture is running.\n\nAdministrator confirmation is needed, now and when you stop it. Any pktmon filters set by others are removed.",
+                        PingCapture.Dir, 64),
+                    Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
+            btnCapture.Enabled = btnDiscard.Enabled = btnRefresh.Enabled = false;
+            lblStatus.Text = start ? L.T("Avvio della cattura...", "Starting the capture...") : L.T("Lettura della cattura...", "Reading the capture...");
+            var t = new Thread(delegate ()
+            {
+                int code = PingCapture.RunElevated(start ? "start" : "stop");
+                try
+                {
+                    BeginInvoke(new Action(delegate
+                    {
+                        if (code == 2)
+                            MessageBox.Show(this, L.T("pktmon sta già registrando per qualcun altro (una cattura avviata a mano o da un programma). Fermala con \"pktmon stop\" in un terminale da amministratore, poi riprova.",
+                                                      "pktmon is already recording for someone else (a capture started by hand or by a program). Stop it with \"pktmon stop\" in an administrator terminal, then try again."),
+                                            Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        else if (code == -1)
+                            MessageBox.Show(this, L.T("Conferma di amministratore annullata: la cattura non è cambiata.", "Administrator confirmation cancelled: the capture didn't change."),
+                                            Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        else if (code != 0)
+                            MessageBox.Show(this, start ? L.T("Non è stato possibile avviare pktmon.", "pktmon could not be started.")
+                                                        : L.T("La cattura è stata fermata, ma non è stato possibile leggerne i risultati.", "The capture was stopped, but its results could not be read."),
+                                            Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        Reload();
+                    }));
+                }
+                catch { }
+            });
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        void DiscardCapture()
+        {
+            if (MessageBox.Show(this, L.T("Eliminare i risultati della cattura con pktmon?", "Delete the results of the pktmon capture?"),
+                                Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+            if (!PingCapture.Discard())
+                MessageBox.Show(this, L.F("Non è stato possibile eliminare la cartella {0}.", "The folder {0} could not be deleted.", PingCapture.Dir),
+                                Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            Reload();
         }
 
         string ListText()

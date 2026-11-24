@@ -35,6 +35,7 @@ namespace CorbolSys
         //   /snapshot <file> [analysis] -> immagine PNG del widget (o della finestra di analisi), poi esce
         //   /snapshot <file> welcome <n> -> scheda n (0-3) della presentazione
         //   /pinglog on|off <SID> -> (come amministratore) accende o spegne il registro del firewall per i ping
+        //   /pingcapture start|stop|off <SID> -> (come amministratore) cattura dei ping con pktmon
         [STAThread]
         static void Main(string[] args)
         {
@@ -42,6 +43,12 @@ namespace CorbolSys
             if (args.Length >= 2 && args[0].Equals("/pinglog", StringComparison.OrdinalIgnoreCase))
             {
                 Environment.Exit(PingWatch.SetLogging(args[1].Equals("on", StringComparison.OrdinalIgnoreCase), args.Length > 2 ? args[2] : null));
+                return;
+            }
+            // come amministratore: avvia, ferma o cancella la cattura dei ping con pktmon (PingCapture.cs)
+            if (args.Length >= 2 && args[0].Equals("/pingcapture", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.Exit(PingCapture.Command(args[1], args.Length > 2 ? args[2] : null));
                 return;
             }
             if (args.Length >= 2 && args[0].Equals("/report", StringComparison.OrdinalIgnoreCase))

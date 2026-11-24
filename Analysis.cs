@@ -504,6 +504,7 @@ namespace CorbolSys
             c.Extra.Add(!Ports.FirewallKnown ? L.T("Firewall di Windows: stato non noto", "Windows firewall: state unknown")
                         : Ports.FirewallOn ? L.T("Firewall di Windows: acceso", "Windows firewall: on") : L.T("Firewall di Windows: spento", "Windows firewall: off"));
             try { c.Extra.Add(PingWatch.Summary()); } catch { }
+            try { string cap = PingCapture.Summary(); if (cap != null) c.Extra.Add(cap); } catch { }
             c.Extra.Add(L.T("Elenco completo: doppio clic su questo controllo, oppure Porte aperte... nel menu.", "Full list: double-click this check, or Open ports... in the menu."));
 
             var parts = new List<string> { L.F("{0} aperte alla rete", "{0} open to the network", net.Count) };
