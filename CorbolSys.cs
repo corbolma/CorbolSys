@@ -36,6 +36,28 @@ namespace CorbolSys
         //   /snapshot <file> welcome <n> -> scheda n (0-3) della presentazione
         //   /pinglog on|off <SID> -> (come amministratore) accende o spegne il registro del firewall per i ping
         //   /pingcapture start|stop|off <SID> -> (come amministratore) cattura dei ping con pktmon
+
+        // Comandi dalle altre app Corbol (CorbolLink.cs): status = stato in breve, report = analisi completa del PC
+        static void StartLink()
+        {
+            Corbol.Link.Start("CorbolSys", L.T);
+            Corbol.Link.Handle("status", false, delegate (List<string> a)
+            {
+                double up = (DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds;
+                if (up < 3000) Thread.Sleep(3000 - (int)up);   // il primo campione
+                return WidgetForm.StatusText();
+            });
+            Corbol.Link.Handle("report", false, delegate (List<string> a)
+            {
+                // qualche campione di CPU, dischi e processi se l'app è appena partita
+                double up = (DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds;
+                if (up < 7000) Thread.Sleep(7000 - (int)up);
+                var an = new Analysis();
+                an.Run();
+                return an.ReportText();
+            });
+            Corbol.Link.Ready();
+        }
         [STAThread]
         static void Main(string[] args)
         {
@@ -97,6 +119,7 @@ namespace CorbolSys
                 PingWatch.Start();   // quando arrivano i ping, mentre l'app è aperta
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
+                StartLink();
                 Application.Run(new WidgetForm(cmd));
             }
         }
@@ -270,6 +293,7 @@ namespace CorbolSys
             menu.Items.Add(Mi("Pulizia disco...", "Disk cleanup...", delegate { CleanupForm.ShowOnce(appIcon); }));
             menu.Items.Add(Mi("Porte aperte...", "Open ports...", delegate { PortsForm.ShowOnce(appIcon); }));
             menu.Items.Add(Mi("Assistente AI...", "AI assistant...", delegate { AiSettingsForm.ShowOnce(appIcon, null); }));
+            menu.Items.Add(Corbol.Link.OpenInMenu(L.T("App Corbol", "Corbol apps"), null));
             menu.Items.Add(Mi("Gestione attività", "Task Manager", delegate { Launch("taskmgr.exe", ""); }));
             menu.Items.Add(Mi("Copia stato attuale", "Copy current status", delegate { try { Clipboard.SetText(StatusText()); tray.ShowBalloonTip(1500, "CorbolSys", L.T("Stato copiato negli appunti", "Status copied to clipboard"), ToolTipIcon.Info); } catch { } }));
             menu.Items.Add(new ToolStripSeparator());
@@ -967,7 +991,7 @@ namespace CorbolSys
             DrawRight(g, "60 s", fSmall, r.Right - 4, r.Y + 2, p.Label);
         }
 
-        string StatusText()
+        public static string StatusText()
         {
             var s = SysMonitor.Instance.Current;
             var sb = new StringBuilder();

@@ -422,7 +422,8 @@ namespace CorbolSys
             return "You are the PC health assistant built into CorbolSys, a system monitor for Windows. The first message contains the results " +
                    "of an automatic analysis of the user's PC: the checks with their status, details, and the resource usage trend recorded " +
                    "by CorbolSys. Help a non-technical user understand the state of their computer and fix problems, most important first, " +
-                   "naming the specific programs or components involved. " + Common + (tools ? " " + ToolsHelp : "") + " Answer in " + LangName() + ".";
+                   "naming the specific programs or components involved. " + Common + (tools ? " " + ToolsHelp : "") + " Answer in " + LangName() + "." +
+                   Corbol.Link.AiPrompt();
         }
 
         const string ExplainRequest = "Explain what these results mean for me and what I should do, most important first. If everything is fine, say so briefly. Keep it under about 250 words.";
@@ -544,6 +545,13 @@ namespace CorbolSys
                     // la risposta (senza le righe dei controlli) entra nella conversazione per le domande successive
                     string answer = string.Join("\n", final.Split('\n').Where(l => !l.StartsWith("» "))).Trim();
                     string shown = a != null ? a.Restore(final.Trim()) : final.Trim();
+                    // comandi per le altre app Corbol: via dal testo, si eseguono dopo la conferma
+                    List<Corbol.LinkAction> links = null;
+                    if (res.Ok)
+                    {
+                        links = Corbol.Link.TakeActions(shown, out shown);
+                        Corbol.Link.TakeActions(answer, out answer);
+                    }
                     if (res.Cancelled) shown += (shown.Length > 0 ? "\n\n" : "") + L.T("(interrotto)", "(stopped)");
                     else if (!res.Ok) shown = res.Error + (shown.Length > 0 ? "\n\n" + shown : "");
                     else if (res.Truncated) shown += "\n\n" + L.T("(risposta troncata)", "(reply cut short)");
@@ -553,6 +561,10 @@ namespace CorbolSys
                     transcript.Append(shown);
                     ShowAi(transcript.ToString());
                     txtQuestion.Focus();
+                    var said = convo.Count > 0 && convo[convo.Count - 1].Role == "assistant" ? convo[convo.Count - 1] : null;
+                    Corbol.Link.RunActions(this, links,
+                        (x, txt, ok) => { transcript.Append("\n\n" + Corbol.Link.Note(x, txt, ok)); ShowAi(transcript.ToString()); },
+                        sum => { if (sum != null && said != null) said.Text += "\n[results of the commands for the other apps]\n" + (a != null ? a.Apply(sum) : sum); });
                 });
             }) { IsBackground = true, Name = "CorbolSys AI" };
             t.Start();

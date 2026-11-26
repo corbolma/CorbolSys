@@ -341,6 +341,7 @@ Update to CorbolSys {0}... =
 In-depth analysis... = 
 Open ports... = 
 AI assistant... = 
+Corbol apps = 
 Task Manager = 
 Copy current status = 
 Status copied to clipboard = 
